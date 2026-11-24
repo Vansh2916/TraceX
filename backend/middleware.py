@@ -16,3 +16,22 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         return response
+
+class SimpleRateLimiter:
+    """In-memory sliding window rate limiter."""
+    def __init__(self, requests_per_minute: int = 120):
+        self.rate = requests_per_minute
+        self.clients: Dict[str, list] = {}
+
+    def is_allowed(self, client_ip: str) -> bool:
+        now = time.time()
+        window_start = now - 60.0
+        timestamps = self.clients.get(client_ip, [])
+        # prune old timestamps
+        timestamps = [t for t in timestamps if t > window_start]
+        if len(timestamps) >= self.rate:
+            self.clients[client_ip] = timestamps
+            return False
+        timestamps.append(now)
+        self.clients[client_ip] = timestamps
+        return True
