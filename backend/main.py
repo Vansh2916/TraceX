@@ -20,13 +20,19 @@ from backend.engine import city_engine, DELHI_CAMERAS, PCR_UNITS, haversine_km
 from backend.gemini_nl import execute_nl_to_sql
 from backend.vision_engine import analyze_vehicle_photo
 from backend.map_view import get_standalone_map_html
+from backend.rtsp_simulator import CAMERA_STREAM_PROFILES, get_all_camera_streams, get_ffmpeg_rtsp_command
+from backend.stream_worker import stream_worker
 
 # FIX BUG 6: replace deprecated @app.on_event("startup") with lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     seed_db_if_empty()
+    # Start multi-junction background optical ANPR stream worker
+    await stream_worker.start(process_and_record_sighting)
     yield
+    # Stop background stream worker on shutdown
+    await stream_worker.stop()
 
 app = FastAPI(title="Crusaders — City-Wide ANPR Trajectory Intelligence", version="1.0.0", lifespan=lifespan)
 
@@ -952,6 +958,72 @@ def update_map_config(cfg: MapConfigRequest):
         "has_key": bool(key)
     }
 
+# ==========================================
+# CCTV & Multi-Junction RTSP Simulator APIs
+# ==========================================
+
+@app.get("/api/cctv/streams")
+def get_cctv_streams():
+    """
+    Returns active CCTV stream endpoints across the 12 Delhi municipal corridors,
+    including RTSP URLs, codec profiles, and live status.
+    """
+    return {
+        "status": "success",
+        "streams": get_all_camera_streams(),
+        "simulator": stream_worker.get_status()
+    }
+
+@app.get("/api/cctv/streams/{cam_id}/rtsp-command")
+def get_stream_rtsp_command(cam_id: str):
+    """
+    Returns the exact FFmpeg command string to publish this video stream
+    over an RTSP transport channel (e.g. for MediaMTX, VLC, or OpenCV).
+    """
+    cmd = get_ffmpeg_rtsp_command(cam_id, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if not cmd:
+        raise HTTPException(status_code=404, detail=f"Camera stream {cam_id} not found")
+    return {
+        "camera_id": cam_id,
+        "ffmpeg_command": cmd,
+        "stream_info": CAMERA_STREAM_PROFILES.get(cam_id)
+    }
+
+class SimulatorToggleRequest(BaseModel):
+    enabled: bool
+
+@app.post("/api/cctv/simulator/toggle")
+async def toggle_cctv_simulator(req: SimulatorToggleRequest):
+    """
+    Enable or pause background automated vehicle stream ingestion across corridors.
+    """
+    if req.enabled:
+        await stream_worker.start(process_and_record_sighting)
+    else:
+        await stream_worker.stop()
+    return {
+        "success": True,
+        "status": stream_worker.get_status()
+    }
+
+@app.post("/api/cctv/simulator/trigger-scan")
+async def trigger_cctv_optical_scan():
+    """
+    Trigger an instant optical ANPR OCR scan across active CCTV junction feeds.
+    """
+    scan_result = await stream_worker.execute_scan_cycle(process_and_record_sighting)
+    return {
+        "success": True,
+        "data": scan_result
+    }
+
+@app.get("/api/cctv/simulator/status")
+def get_simulator_status_endpoint():
+    return {
+        "success": True,
+        "status": stream_worker.get_status()
+    }
+
 # WebSocket Endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -1004,4 +1076,12 @@ async def websocket_endpoint(websocket: WebSocket):
 dist_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
 if os.path.exists(dist_path):
     app.mount("/app", StaticFiles(directory=dist_path, html=True), name="static")
+
+    @app.get("/")
+    def root_redirect():
+        return FileResponse(os.path.join(dist_path, "index.html"))
+
+    footage_path = os.path.join(dist_path, "footage")
+    if os.path.exists(footage_path):
+        app.mount("/footage", StaticFiles(directory=footage_path), name="footage")
 
