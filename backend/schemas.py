@@ -2,8 +2,7 @@
 Pydantic Request and Response Schemas for TraceX API.
 """
 from pydantic import BaseModel, Field
-from typing import Optional, List
-from datetime import datetime
+from typing import Optional, List, Dict, Any
 
 class CameraBase(BaseModel):
     id: str = Field(..., description="Camera identifier, e.g. CAM_01")
@@ -51,3 +50,28 @@ class AlibiVerificationRequest(BaseModel):
     claimed_lon: float
     claimed_time_sec: float
     time_window_minutes: int = 30
+
+class TrajectoryPoint(BaseModel):
+    camera_id: str
+    camera_name: str
+    lat: float
+    lon: float
+    timestamp_sec: float
+    speed_kmh: Optional[float] = None
+    status: str = "NORMAL"
+
+class TrajectoryResponse(BaseModel):
+    plate_number: str
+    total_sightings: int
+    first_seen: float
+    last_seen: float
+    points: List[TrajectoryPoint]
+    is_anomalous: bool = False
+    anomaly_reason: Optional[str] = None
+
+class ConvoyDetectionResult(BaseModel):
+    group_id: str
+    vehicles: List[str]
+    shared_junctions: List[str]
+    confidence_score: float
+    first_detected: float
