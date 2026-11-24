@@ -33,7 +33,6 @@ export const CommanderSidebar: React.FC<CommanderSidebarProps> = ({
     { id: 'vehicle_search', label: 'Vehicle Search', icon: Search },
     { id: 'trajectories', label: 'Trajectories', icon: Route },
     { id: 'convoy_intelligence', label: 'Convoy Intelligence', icon: Car },
-    { id: 'alibi_verification', label: 'Alibi Verification', icon: Scale },
     { id: 'camera_network', label: 'Camera Network', icon: Video },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },

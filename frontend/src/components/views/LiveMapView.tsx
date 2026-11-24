@@ -153,12 +153,12 @@ export const LiveMapView: React.FC<LiveMapViewProps> = ({ cameras, onOpenFeed })
       });
 
       marker.bindTooltip(
-        `<div class="p-1 font-sans">
-          <div class="text-[11px] font-bold text-white flex items-center gap-1.5">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        `<div style="background-color: #090d16; color: #f8fafc; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.8); font-family: inherit;">
+          <div style="font-size: 11.5px; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 6px;">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #34d399; display: inline-block;"></span>
             ${cam.id}: ${cam.name}
           </div>
-          <div class="text-[9.5px] text-slate-300 font-mono mt-0.5">${cam.zone} • Speed: ${cam.speed_limit} km/h</div>
+          <div style="font-size: 10px; color: #cbd5e1; font-family: monospace; margin-top: 2px;">${cam.zone} • Speed: ${cam.speed_limit} km/h</div>
         </div>`,
         { direction: 'top', className: 'tactical-map-tooltip' }
       );
@@ -189,10 +189,10 @@ export const LiveMapView: React.FC<LiveMapViewProps> = ({ cameras, onOpenFeed })
     DEFAULT_PCR_UNITS.forEach((unit) => {
       const marker = L.marker([unit.lat, unit.lon], { icon: pcrIcon(unit.callsign) });
       marker.bindTooltip(
-        `<div class="p-1 font-sans">
-          <div class="text-[11px] font-bold text-cyan-300">🚓 ${unit.callsign}</div>
-          <div class="text-[9.5px] text-slate-300 font-mono">${unit.station} • ${unit.officer}</div>
-          <div class="text-[9px] text-emerald-400 font-mono">STATUS: ON PATROL (FAST INTERCEPT)</div>
+        `<div style="background-color: #090d16; color: #f8fafc; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.8); font-family: inherit;">
+          <div style="font-size: 11.5px; font-weight: 700; color: #38bdf8;">🚓 ${unit.callsign}</div>
+          <div style="font-size: 10px; color: #cbd5e1; font-family: monospace; margin-top: 2px;">${unit.station} • ${unit.officer}</div>
+          <div style="font-size: 9.5px; color: #34d399; font-family: monospace; margin-top: 3px; font-weight: 600;">STATUS: ON PATROL (FAST INTERCEPT)</div>
         </div>`,
         { direction: 'top', className: 'tactical-map-tooltip' }
       );

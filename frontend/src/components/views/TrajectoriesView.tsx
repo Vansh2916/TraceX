@@ -282,13 +282,21 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
       });
 
       const marker = L.marker([cp.lat, cp.lon], { icon: dotIcon });
+      const badgeStyle = isGhost
+        ? 'color: #d8b4fe; background-color: rgba(88, 28, 135, 0.45); border: 1px solid #a855f7;'
+        : isSpeed
+        ? 'color: #fca5a5; background-color: rgba(159, 18, 57, 0.45); border: 1px solid #f43f5e;'
+        : 'color: #86efac; background-color: rgba(6, 78, 59, 0.45); border: 1px solid #10b981;';
+
       marker.bindTooltip(
-        `<div class="p-1 font-sans">
-          <div class="text-[11px] font-bold text-white">${cp.name}</div>
-          <div class="text-[9.5px] text-slate-300 font-mono">Time: ${cp.time} • Speed: ${cp.speed}</div>
-          <div class="text-[9px] font-bold ${
-            isGhost ? 'text-purple-400' : isSpeed ? 'text-rose-400' : 'text-emerald-400'
-          } uppercase font-mono mt-0.5">${cp.status}</div>
+        `<div style="background-color: #090d16; color: #f8fafc; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.8); min-width: 175px; font-family: inherit;">
+          <div style="font-size: 11.5px; font-weight: 700; color: #ffffff; margin-bottom: 3px; line-height: 1.3;">${cp.name}</div>
+          <div style="font-size: 10px; color: #cbd5e1; font-family: monospace; margin-bottom: 4px;">
+            Time: <span style="color: #38bdf8; font-weight: 600;">${cp.time}</span> • Speed: <span style="color: #fbbf24; font-weight: 600;">${cp.speed}</span>
+          </div>
+          <div style="font-size: 9.5px; font-weight: 700; font-family: monospace; text-transform: uppercase; display: inline-block; padding: 2px 7px; border-radius: 4px; ${badgeStyle}">
+            ${cp.status}
+          </div>
         </div>`,
         { direction: 'top', className: 'tactical-map-tooltip' }
       );
@@ -316,9 +324,9 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
 
       L.marker([curr.projected.lat, curr.projected.lon], { icon: projIcon })
         .bindTooltip(
-          `<div class="p-1 font-sans">
-            <div class="text-[11px] font-bold text-amber-300">Projected Intercept: ${curr.projected.name}</div>
-            <div class="text-[9.5px] text-slate-300 font-mono">Markov Confidence: ${curr.projected.prob}</div>
+          `<div style="background-color: #090d16; color: #f8fafc; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.8); min-width: 175px; font-family: inherit;">
+            <div style="font-size: 11.5px; font-weight: 700; color: #fbbf24; margin-bottom: 3px;">Projected Intercept: ${curr.projected.name}</div>
+            <div style="font-size: 10px; color: #cbd5e1; font-family: monospace;">Markov Confidence: <span style="color: #38bdf8; font-weight: 600;">${curr.projected.prob}</span></div>
           </div>`,
           { direction: 'top', className: 'tactical-map-tooltip' }
         )

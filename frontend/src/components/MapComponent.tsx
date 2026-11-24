@@ -400,14 +400,14 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       });
 
       polyline.bindTooltip(
-        `<div class="font-mono text-xs">
-          <span class="font-bold text-white">${plate}</span><br/>
-          <span class="text-slate-300">Sightings: ${track.length}</span><br/>
-          <span class="${isGhost ? 'text-red-400 font-bold' : isWatchlist ? 'text-rose-400 font-bold' : 'text-emerald-400'}">
+        `<div style="background-color: #090d16; color: #f8fafc; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.8); font-family: monospace; font-size: 11px;">
+          <div style="font-weight: 700; color: #ffffff;">${plate}</div>
+          <div style="color: #cbd5e1; font-size: 10px; margin-top: 2px;">Sightings: ${track.length}</div>
+          <div style="margin-top: 3px; font-weight: 700; font-size: 10px; color: ${isGhost ? '#f87171' : isWatchlist ? '#fb7185' : '#34d399'};">
             ${isGhost ? '⚠️ GHOST CLONE ALERT' : isWatchlist ? '🚨 WATCHLIST TARGET' : 'VALID TRAJECTORY'}
-          </span>
+          </div>
         </div>`,
-        { sticky: true }
+        { sticky: true, className: 'tactical-map-tooltip' }
       );
 
       trajectoriesLayer.addLayer(polyline);
@@ -427,11 +427,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           });
 
           predPoly.bindTooltip(
-            `<div class="font-mono text-xs text-purple-300">
-              <b>Markov Projected Exit:</b> ${topPred.camera_name}<br/>
-              Probability: <b>${Math.round(topPred.probability * 100)}%</b> | ETA: ${topPred.eta_seconds}s
+            `<div style="background-color: #090d16; color: #f8fafc; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.8); font-family: monospace; font-size: 11px; color: #d8b4fe;">
+              <b style="color: #e9d5ff;">Markov Projected Exit:</b> ${topPred.camera_name}<br/>
+              <span style="color: #cbd5e1;">Probability: <b style="color: #38bdf8;">${Math.round(topPred.probability * 100)}%</b> | ETA: <b style="color: #fbbf24;">${topPred.eta_seconds}s</b></span>
             </div>`,
-            { sticky: true }
+            { sticky: true, className: 'tactical-map-tooltip' }
           );
 
           trajectoriesLayer.addLayer(predPoly);

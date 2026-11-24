@@ -22,7 +22,6 @@ import { TrajectoriesView } from './components/views/TrajectoriesView';
 import { LiveMapView } from './components/views/LiveMapView';
 import { CameraNetworkView } from './components/views/CameraNetworkView';
 import { ConvoyView } from './components/views/ConvoyView';
-import { AlibiView } from './components/views/AlibiView';
 import { AnalyticsView } from './components/views/AnalyticsView';
 import { SettingsView } from './components/views/SettingsView';
 
@@ -333,11 +332,6 @@ export const App: React.FC = () => {
         {/* Dedicated Convoy View */}
         {activeNav === 'convoy_intelligence' && (
           <ConvoyView />
-        )}
-
-        {/* Dedicated Alibi View */}
-        {activeNav === 'alibi_verification' && (
-          <AlibiView />
         )}
 
         {/* Dedicated Camera Network View */}

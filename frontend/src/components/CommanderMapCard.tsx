@@ -106,13 +106,13 @@ export const CommanderMapCard: React.FC<CommanderMapCardProps> = ({
         onSelectCamera(cam.id);
       });
       marker.bindTooltip(
-        `<div class="p-1 font-sans">
-          <div class="text-[11px] font-bold text-white flex items-center gap-1.5">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        `<div style="background-color: #090d16; color: #f8fafc; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.8); font-family: inherit;">
+          <div style="font-size: 11.5px; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 6px;">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #34d399; display: inline-block;"></span>
             ${cam.id}: ${cam.name}
           </div>
-          <div class="text-[9.5px] text-slate-300 font-mono mt-0.5">${cam.landmark || 'Delhi Corridor'}</div>
-          <div class="text-[9px] text-cyan-400 font-mono mt-0.5">Speed Limit: ${cam.speed_limit} km/h • ACTIVE</div>
+          <div style="font-size: 10px; color: #cbd5e1; font-family: monospace; margin-top: 2px;">${cam.landmark || 'Delhi Corridor'}</div>
+          <div style="font-size: 9.5px; color: #38bdf8; font-family: monospace; margin-top: 3px;">Speed Limit: ${cam.speed_limit} km/h • ACTIVE</div>
         </div>`,
         { direction: 'top', className: 'tactical-map-tooltip' }
       );
