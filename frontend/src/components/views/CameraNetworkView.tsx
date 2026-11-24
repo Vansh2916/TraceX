@@ -228,8 +228,19 @@ export const CameraNetworkView: React.FC<CameraNetworkViewProps> = ({ cameras, o
     }
   };
 
+  // Ensure we have cameras even before async backend fetch resolves
+  const effectiveCameras = cameras && cameras.length > 0 ? cameras : Object.keys(FOOTAGE_MAP).map(cid => ({
+    id: cid,
+    name: FOOTAGE_MAP[cid].corridor,
+    landmark: FOOTAGE_MAP[cid].corridor,
+    lat: 28.62,
+    lon: 77.22,
+    zone: 'Delhi NCR',
+    speed_limit: 50
+  }));
+
   // Filter cameras based on active corridor zone
-  const filteredCameras = cameras.filter((cam) => {
+  const filteredCameras = effectiveCameras.filter((cam) => {
     if (activeZone === 'all') return true;
     if (activeZone === 'central') return ['CAM_01', 'CAM_02', 'CAM_03'].includes(cam.id);
     if (activeZone === 'ring') return ['CAM_04', 'CAM_05', 'CAM_08', 'CAM_09', 'CAM_10'].includes(cam.id);
@@ -237,8 +248,8 @@ export const CameraNetworkView: React.FC<CameraNetworkViewProps> = ({ cameras, o
     return true;
   });
 
-  const quadCameras = cameras.filter((c) => ['CAM_01', 'CAM_02', 'CAM_03', 'CAM_06'].includes(c.id));
-  const focusCam = cameras.find((c) => c.id === focusCamId) || cameras[0];
+  const quadCameras = effectiveCameras.filter((c) => ['CAM_01', 'CAM_02', 'CAM_03', 'CAM_06'].includes(c.id));
+  const focusCam = effectiveCameras.find((c) => c.id === focusCamId) || effectiveCameras[0];
   const focusMeta = FOOTAGE_MAP[focusCam?.id || 'CAM_01'] || FOOTAGE_MAP['CAM_01'];
 
   return (

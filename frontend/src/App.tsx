@@ -27,9 +27,9 @@ import { AnalyticsView } from './components/views/AnalyticsView';
 import { SettingsView } from './components/views/SettingsView';
 
 export const App: React.FC = () => {
-  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [cameras, setCameras] = useState<Camera[]>(MOCK_CAMERAS);
   const [sightings, setSightings] = useState<Sighting[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>(MOCK_ALERTS);
   const [activeNav, setActiveNav] = useState('overview');
   const [selectedPlate, setSelectedPlate] = useState('DL8CAF2381');
 
