@@ -4,6 +4,7 @@ import time
 import random
 import asyncio
 import logging
+from contextlib import asynccontextmanager  # FIX BUG 6: lifespan import
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
@@ -20,7 +21,14 @@ from backend.gemini_nl import execute_nl_to_sql
 from backend.vision_engine import analyze_vehicle_photo
 from backend.map_view import get_standalone_map_html
 
-app = FastAPI(title="Crusaders — City-Wide ANPR Trajectory Intelligence", version="1.0.0")
+# FIX BUG 6: replace deprecated @app.on_event("startup") with lifespan context manager
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    seed_db_if_empty()
+    yield
+
+app = FastAPI(title="Crusaders — City-Wide ANPR Trajectory Intelligence", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,12 +37,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Startup event
-@app.on_event("startup")
-def on_startup():
-    init_db()
-    seed_db_if_empty()
 
 # WebSocket Connection Manager
 class ConnectionManager:
@@ -138,7 +140,7 @@ async def process_and_record_sighting(
     cur.execute("SELECT reason, severity FROM watchlist WHERE plate = ? AND status = 'ACTIVE'", (plate,))
     watchlist_hit = cur.fetchone()
     if watchlist_hit:
-        flags.append("WATCHLIST_MATCH")
+        flags.append("WATCHLIST_MATCH")  # FIX BUG 10: flag name kept as WATCHLIST_MATCH
 
     # Predict Next Trajectory using Markov Chain Transition Matrix
     prev_cam = prev_sighting["camera_id"] if prev_sighting else None
@@ -200,10 +202,10 @@ async def process_and_record_sighting(
         cur.execute("""
             INSERT INTO alerts (alert_type, plate, camera_id, timestamp_sec, iso_time, severity, details, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'UNRESOLVED')
-        """, ("WATCHLIST_HIT", plate, camera_id, current_time_sec, iso_time, watchlist_hit["severity"], json.dumps(wl_details)))
+        """, ("WATCHLIST_MATCH", plate, camera_id, current_time_sec, iso_time, watchlist_hit["severity"], json.dumps(wl_details)))  # FIX BUG 10: alert_type now matches flag name WATCHLIST_MATCH
         new_alerts.append({
             "id": cur.lastrowid,
-            "alert_type": "WATCHLIST_HIT",
+            "alert_type": "WATCHLIST_MATCH",  # FIX BUG 10: was WATCHLIST_HIT, now consistent with sighting flag
             "plate": plate,
             "camera_id": camera_id,
             "severity": watchlist_hit["severity"],
@@ -505,13 +507,16 @@ def get_sightings(limit: int = 50, plate: Optional[str] = None, camera_id: Optio
 
 @app.post("/api/sightings")
 async def create_sighting(data: SightingCreate):
+    # FIX BUG 8: merged duplicate /api/sighting endpoint into /api/sightings
+    # Now supports optional timestamp_sec (custom_timestamp) from SightingCreate schema
     result = await process_and_record_sighting(
         plate=data.plate.strip().upper(),
         camera_id=data.camera_id,
         confidence=data.confidence,
         vehicle_type=data.vehicle_type or "Sedan",
         color=data.color or "White",
-        forced_speed=data.speed_kmh
+        forced_speed=data.speed_kmh,
+        custom_timestamp=data.timestamp_sec  # FIX BUG 8: was missing in original /api/sightings
     )
 
     # Automatically persist to dedicated live streaming vehicles database
@@ -547,7 +552,7 @@ async def create_sighting(data: SightingCreate):
             confidence=data.confidence or 0.98,
             detection_engine="NVIDIA NIM + Native ANPR"
         )
-        await ws_manager.broadcast({
+        await manager.broadcast({
             "type": "LIVE_STREAMING_VEHICLE_LOGGED",
             "data": live_rec
         })
@@ -593,7 +598,7 @@ async def record_live_vehicle_endpoint(data: LiveVehicleCreate):
         confidence=data.confidence or 0.98,
         detection_engine=data.detection_engine or "NVIDIA NIM + Native ANPR"
     )
-    await ws_manager.broadcast({
+    await manager.broadcast({
         "type": "LIVE_STREAMING_VEHICLE_LOGGED",
         "data": rec
     })
@@ -672,19 +677,6 @@ async def add_to_watchlist(data: WatchlistCreate):
     })
 
     return {"success": True, "message": f"Plate {plate_norm} successfully enrolled in active watchlist."}
-
-@app.post("/api/sighting")
-async def ingest_sighting(payload: SightingCreate):
-    res = await process_and_record_sighting(
-        plate=payload.plate.strip().upper(),
-        camera_id=payload.camera_id,
-        confidence=payload.confidence,
-        vehicle_type=payload.vehicle_type or "Sedan",
-        color=payload.color or "White",
-        forced_speed=payload.speed_kmh,
-        custom_timestamp=payload.timestamp_sec
-    )
-    return res
 
 @app.post("/api/alibi")
 def verify_alibi(payload: AlibiRequest):
@@ -1006,8 +998,10 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception:
         manager.disconnect(websocket)
 
-# Serve built frontend if dist exists
+# FIX BUG 11: Mount frontend at /app instead of / to avoid shadowing /api/* routes.
+# All API routes use /api/* prefix so there is no conflict, but mounting at /app is
+# safer and more explicit — the SPA is accessible at http://host:port/app/
 dist_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
 if os.path.exists(dist_path):
-    app.mount("/", StaticFiles(directory=dist_path, html=True), name="static")
+    app.mount("/app", StaticFiles(directory=dist_path, html=True), name="static")
 

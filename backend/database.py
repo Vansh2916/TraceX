@@ -107,164 +107,17 @@ def seed_db_if_empty():
 
     cur.execute("SELECT COUNT(*) as count FROM sightings")
     cnt = cur.fetchone()["count"]
-    conn.close()
     if cnt > 20:
+        conn.close()  # FIX BUG 1: close only on early return, not before seeding
         return
 
     print("[Crusaders DB] Seeding initial real Delhi traffic & intelligence records...")
     from backend.seed_real_data import seed_real_delhi_surveillance
     seed_real_delhi_surveillance()
 
-    # 1. Seed Cameras
-    for cam_id, meta in DELHI_CAMERAS.items():
-        cur.execute("""
-            INSERT INTO cameras (id, name, landmark, lat, lon, zone, speed_limit)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (cam_id, meta["name"], meta["landmark"], meta["lat"], meta["lon"], meta["zone"], meta["speed_limit"]))
-
-    # 2. Seed Watchlist
-    watchlist_items = [
-        ("DL 1C WX 0007", "Hit-and-Run Suspect (Fatal pedestrian collision on Vikas Marg)", "CRITICAL", "High-priority red alert issued by Delhi Traffic Police HQ"),
-        ("DL 8C AB 9110", "Duplicate / Cloned Registration Flagged", "CRITICAL", "Identical plate spotted concurrently in two distinct revenue districts"),
-        ("HR 51 BZ 4321", "Wanted Narcotics Transit Vehicle", "HIGH", "Suspected inter-state delivery courier operating along NH-48"),
-        ("UP 14 DX 1234", "Stolen Black SUV (Armed carjacking FIR 412/26)", "HIGH", "Reported stolen from Sector 18 border"),
-        ("DL 3C CC 1122", "Unregistered Armed Escort Formation", "MEDIUM", "Associated with unpermitted multi-vehicle convoy")
-    ]
-    now_str = datetime.now().isoformat()
-    for plate, reason, severity, desc in watchlist_items:
-        cur.execute("""
-            INSERT INTO watchlist (plate, reason, severity, added_at, description, status)
-            VALUES (?, ?, ?, ?, ?, 'ACTIVE')
-        """, (plate, reason, severity, now_str, desc))
-
-    # 3. Seed Realistic Traffic Sightings
-    now_sec = time.time()
-    seed_sightings = []
-
-    # A) Convoy Pair across 4 junctions: CAM_07 -> CAM_06 -> CAM_09 -> CAM_05
-    # Plate 1: DL 1C AA 9999 (White Scorpio-N)
-    # Plate 2: HR 26 DQ 8888 (Black Fortuner)
-    convoy_route = [
-        ("CAM_07", now_sec - 1200),
-        ("CAM_06", now_sec - 850),
-        ("CAM_09", now_sec - 730),
-        ("CAM_05", now_sec - 520),
-    ]
-    for cid, t in convoy_route:
-        # Leader
-        seed_sightings.append((
-            "DL 1C AA 9999", cid, t, datetime.fromtimestamp(t).isoformat(),
-            64.5, 0.96, "SUV", "White", json.dumps(["NORMAL", "CONVOY_CANDIDATE"])
-        ))
-        # Follower (arriving 18-24 seconds later)
-        t_follower = t + 22
-        seed_sightings.append((
-            "HR 26 DQ 8888", cid, t_follower, datetime.fromtimestamp(t_follower).isoformat(),
-            66.0, 0.94, "SUV", "Black", json.dumps(["NORMAL", "CONVOY_CANDIDATE"])
-        ))
-
-    # B) Seeded Speed Violation: UP 16 Z 4455 on Dhaula Kuan
-    t_speed = now_sec - 1800
-    seed_sightings.append((
-        "UP 16 Z 4455", "CAM_06", t_speed, datetime.fromtimestamp(t_speed).isoformat(),
-        94.2, 0.93, "Sedan", "Silver", json.dumps(["SPEED_VIOLATION"])
-    ))
-
-    # C) Airport VIP fleet shuttling CAM_07 <-> CAM_06
-    airport_fleet = [
-        ("DL 3C CC 1122", "CAM_07", now_sec - 2400, 55.0, 0.95, "SUV", "Black", ["WATCHLIST_MATCH"]),
-        ("DL 3C CC 1122", "CAM_06", now_sec - 2020, 68.0, 0.97, "SUV", "Black", ["WATCHLIST_MATCH"]),
-        ("HR 26 BY 5500", "CAM_07", now_sec - 3100, 48.0, 0.91, "Van", "White", ["NORMAL"]),
-        ("DL 2C AK 1001", "CAM_07", now_sec - 1500, 52.0, 0.98, "Sedan", "White", ["NORMAL"]),
-    ]
-    for plate, cid, t, spd, conf, vtype, col, flg in airport_fleet:
-        seed_sightings.append((
-            plate, cid, t, datetime.fromtimestamp(t).isoformat(),
-            spd, conf, vtype, col, json.dumps(flg)
-        ))
-
-    # D) General Ambient City Traffic across all junctions
-    ambient_vehicles = [
-        ("DL 9C AB 1234", "Hatchback", "Red"),
-        ("DL 4C XY 9081", "Sedan", "White"),
-        ("HR 51 AQ 7711", "SUV", "Grey"),
-        ("DL 1C EF 3344", "Auto-Rickshaw", "Yellow-Green"),
-        ("UP 14 BK 6520", "Bus", "Orange"),
-        ("DL 8C JK 4912", "Sedan", "Blue"),
-        ("DL 7C MM 3120", "Motorcycle", "Black"),
-        ("HR 29 AZ 9002", "Truck", "Brown"),
-        ("DL 10 C 8821", "SUV", "White"),
-        ("DL 1C BB 4490", "Sedan", "Silver"),
-        ("UP 16 ER 5521", "Hatchback", "White"),
-        ("DL 5C PQ 6214", "Van", "Silver"),
-    ]
-
-    # Generate sequential tracks for some ambient vehicles
-    trajectories = [
-        ("DL 9C AB 1234", [("CAM_01", now_sec - 2700), ("CAM_02", now_sec - 2520), ("CAM_12", now_sec - 2310)]),
-        ("DL 4C XY 9081", [("CAM_04", now_sec - 3600), ("CAM_01", now_sec - 3340), ("CAM_11", now_sec - 3120)]),
-        ("HR 51 AQ 7711", [("CAM_05", now_sec - 1900), ("CAM_10", now_sec - 1720), ("CAM_08", now_sec - 1600)]),
-        ("DL 8C JK 4912", [("CAM_03", now_sec - 1400), ("CAM_01", now_sec - 1260), ("CAM_02", now_sec - 1100)]),
-        ("DL 10 C 8821", [("CAM_11", now_sec - 2200), ("CAM_06", now_sec - 1880), ("CAM_07", now_sec - 1500)]),
-    ]
-
-    for plate, path in trajectories:
-        v_info = next((v for v in ambient_vehicles if v[0] == plate), (plate, "Sedan", "Silver"))
-        for cid, t in path:
-            seed_sightings.append((
-                plate, cid, t, datetime.fromtimestamp(t).isoformat(),
-                48.0, 0.95, v_info[1], v_info[2], json.dumps(["NORMAL"])
-            ))
-
-    # Add single sightings for other cameras
-    cam_keys = list(DELHI_CAMERAS.keys())
-    for idx, (plate, vtype, col) in enumerate(ambient_vehicles):
-        cid = cam_keys[idx % len(cam_keys)]
-        t = now_sec - (idx * 210 + 300)
-        seed_sightings.append((
-            plate, cid, t, datetime.fromtimestamp(t).isoformat(),
-            45.0 + (idx % 15), 0.92, vtype, col, json.dumps(["NORMAL"])
-        ))
-
-    for s in seed_sightings:
-        cur.execute("""
-            INSERT INTO sightings (plate, camera_id, timestamp_sec, iso_time, speed_kmh, confidence, vehicle_type, color, flags)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, s)
-
-    # 4. Seed Initial Alerts
-    initial_alerts = [
-        ("SPEED_VIOLATION", "UP 16 Z 4455", "CAM_06", t_speed, datetime.fromtimestamp(t_speed).isoformat(), "HIGH",
-         json.dumps({
-             "speed_kmh": 94.2,
-             "limit_kmh": 70,
-             "camera_name": "Dhaula Kuan Interchange",
-             "message": "Vehicle recorded at 94.2 km/h on NH48 corridor, exceeding 70 km/h threshold."
-         })),
-        ("CONVOY_DETECTED", "DL 1C AA 9999", "CAM_05", now_sec - 520, datetime.fromtimestamp(now_sec - 520).isoformat(), "HIGH",
-         json.dumps({
-             "plates": ["DL 1C AA 9999", "HR 26 DQ 8888"],
-             "co_occurrence_count": 4,
-             "cameras": ["CAM_07", "CAM_06", "CAM_09", "CAM_05"],
-             "message": "Tactical convoy pair co-occurring within 25 seconds across 4 consecutive Ring Road junctions."
-         })),
-        ("WATCHLIST_HIT", "DL 3C CC 1122", "CAM_06", now_sec - 2020, datetime.fromtimestamp(now_sec - 2020).isoformat(), "MEDIUM",
-         json.dumps({
-             "plate": "DL 3C CC 1122",
-             "reason": "Unregistered Armed Escort Formation",
-             "camera_name": "Dhaula Kuan Interchange",
-             "message": "Flagged surveillance target spotted moving from IGI Airport towards Dhaula Kuan."
-         }))
-    ]
-
-    for alert in initial_alerts:
-        cur.execute("""
-            INSERT INTO alerts (alert_type, plate, camera_id, timestamp_sec, iso_time, severity, details, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'UNRESOLVED')
-        """, alert)
-
-    conn.commit()
-    conn.close()
+    # FIX BUG 5: seed_real_delhi_surveillance() already inserts cameras, watchlist,
+    # sightings, and alerts — the duplicate block below has been removed to prevent
+    # UNIQUE constraint failures on cameras.id and watchlist.plate.
     print("[Crusaders DB] Database initialization and seed completed.")
 
 def insert_live_streaming_vehicle(

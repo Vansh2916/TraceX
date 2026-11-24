@@ -124,16 +124,12 @@ DELHI_CAMERAS: Dict[str, Dict[str, Any]] = {
 # Simulated PCR Police Patrol Units stationed across Delhi
 PCR_UNITS = [
     {"id": "PCR_01", "callsign": "Viper-1", "station": "Connaught Place", "lat": 28.6315, "lon": 77.2180, "officer": "Insp. R. Sharma", "vehicle": "Mahindra Scorpio-N"},
-    {"id": "PCR_02", "callsign": "Cheetah-2", "station": "India Gate / Tilak Marg", "lat": 28.6140, "lon": 28.6140, "officer": "Sub-Insp. A. Yadav", "vehicle": "Toyota Innova Crysta"},
+    {"id": "PCR_02", "callsign": "Cheetah-2", "station": "India Gate / Tilak Marg", "lat": 28.6140, "lon": 77.2310, "officer": "Sub-Insp. A. Yadav", "vehicle": "Toyota Innova Crysta"},  # FIX BUG 4: lon was 28.6140 (latitude), corrected to 77.2310
     {"id": "PCR_03", "callsign": "Eagle-3", "station": "Dhaula Kuan NH48", "lat": 28.5910, "lon": 77.1630, "officer": "Insp. V. Tanwar", "vehicle": "Maruti Gypsy 4x4"},
     {"id": "PCR_04", "callsign": "Rhino-4", "station": "AIIMS Trauma Center Axis", "lat": 28.5685, "lon": 77.2085, "officer": "Sub-Insp. S. Malik", "vehicle": "Mahindra Bolero Neo"},
     {"id": "PCR_05", "callsign": "Panther-5", "station": "Ashram Chowk Bypass", "lat": 28.5720, "lon": 77.2570, "officer": "Insp. K. Singh", "vehicle": "Mahindra Scorpio-N"},
     {"id": "PCR_06", "callsign": "Falcon-6", "station": "IGI Airport Expressway", "lat": 28.5620, "lon": 77.1080, "officer": "Sub-Insp. M. Hooda", "vehicle": "Toyota Hilux Rapid Interceptor"}
 ]
-# Fix coordinates for PCR_02
-PCR_UNITS[1]["lat"] = 28.6140
-PCR_UNITS[1]["lon"] = 77.2310
-
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculate Great Circle distance in kilometers between two lat/lon points."""
     R = 6371.0 # Earth radius in km
@@ -280,7 +276,7 @@ class CityGraphEngine:
         2. Dijkstra path length check:
            If actual_time < 0.65 * dijkstra_min_time -> GHOST_ALERT (cloned plate).
         3. Speed check:
-           Haversine distance / elapsed hours. If > 80 km/h -> SPEED_VIOLATION.
+           Haversine distance / elapsed hours. If > camera speed_limit -> SPEED_VIOLATION.
         """
         # Confidence check
         if confidence < 0.75:
@@ -289,6 +285,9 @@ class CityGraphEngine:
                 "reason": f"Low ANPR confidence score ({confidence:.2f} < 0.75 threshold)",
                 "flags": ["LOW_CONFIDENCE_DISCARDED"]
             }
+
+        # FIX BUG 9: use per-camera speed limit instead of hardcoded 80 km/h
+        cam_speed_limit = DELHI_CAMERAS.get(current_cam, {}).get("speed_limit", 80)
 
         flags: List[str] = []
         anomaly_details: Dict[str, Any] = {}
@@ -344,11 +343,11 @@ class CityGraphEngine:
                 anomaly_details["haversine_distance_km"] = round(h_dist_km, 2)
                 anomaly_details["speed_kmh"] = speed_kmh
 
-                if speed_kmh > 80.0:
+                if speed_kmh > cam_speed_limit:  # FIX BUG 9: use per-camera limit
                     flags.append("SPEED_VIOLATION")
                     anomaly_details["speed_explanation"] = (
                         f"Calculated velocity between {prev_cam} and {current_cam} is {speed_kmh} km/h, "
-                        f"violating Delhi urban arterial speed ceiling of 80 km/h."
+                        f"violating {DELHI_CAMERAS[current_cam]['name']} speed limit of {cam_speed_limit} km/h."
                     )
             else:
                 # Same camera sighting within quick succession

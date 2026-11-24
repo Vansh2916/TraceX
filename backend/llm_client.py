@@ -8,10 +8,11 @@ import requests
 logger = logging.getLogger("crusaders.llm_client")
 
 def load_keys():
-    """Load API keys from local .env or Downloads file."""
+    """Load API keys from local .env file in the project root."""
     search_paths = [
         os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
-        "/Users/daksh/Downloads/freellmapi-keys.env",
+        # FIX BUG 7: removed hardcoded developer machine path "/Users/daksh/Downloads/freellmapi-keys.env"
+        # API keys must be supplied via a .env file in the project root or via environment variables
     ]
     for path in search_paths:
         if os.path.exists(path):

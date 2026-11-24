@@ -2,7 +2,7 @@ import os
 import re
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple  # FIX BUG 3: added Tuple
 import sqlite3
 from backend.database import get_db_connection
 
