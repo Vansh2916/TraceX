@@ -1,10 +1,24 @@
 import os
+import sys
+from pathlib import Path
+
+_backend_dir = Path(__file__).resolve().parent
+_root_dir = _backend_dir.parent
+if str(_root_dir) not in sys.path:
+    sys.path.insert(0, str(_root_dir))
+if str(_backend_dir) not in sys.path:
+    sys.path.insert(0, str(_backend_dir))
+
 import re
 import json
 import logging
 from typing import Dict, Any, List, Optional, Tuple  # FIX BUG 3: added Tuple
 import sqlite3
-from backend.database import get_db_connection
+
+try:
+    from backend.database import get_db_connection
+except ImportError:
+    from database import get_db_connection
 
 logger = logging.getLogger("crusaders.nl_sql")
 
@@ -192,7 +206,10 @@ def offline_fallback_sql(query_text: str) -> Tuple[str, str]:
         "Displaying the latest city-wide ANPR vehicular telemetry streams across Delhi junctions."
     )
 
-from backend.llm_client import call_text_llm
+try:
+    from backend.llm_client import call_text_llm
+except ImportError:
+    from llm_client import call_text_llm
 
 async def execute_nl_to_sql(user_prompt: str) -> Dict[str, Any]:
     """

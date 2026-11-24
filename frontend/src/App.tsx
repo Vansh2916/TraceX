@@ -14,6 +14,8 @@ import { ConsecutiveCameraTracker } from './components/ConsecutiveCameraTracker'
 import { LiveVehiclesDatabaseModal } from './components/LiveVehiclesDatabaseModal';
 import { DashcamModal } from './components/DashcamModal';
 import { CitizenPWAModal } from './components/CitizenPWAModal';
+import { JudgeDemoBar } from './components/JudgeDemoBar';
+import { ToastContainer, ToastItem } from './components/ToastNotification';
 
 // Dedicated Views for Sidebar Navigation
 import { TrajectoriesView } from './components/views/TrajectoriesView';
@@ -38,9 +40,69 @@ export const App: React.FC = () => {
   const [isCitizenPWAOpen, setIsCitizenPWAOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
+  // Judge Bar & Audio state
+  const [isJudgeBarOpen, setIsJudgeBarOpen] = useState(true);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [isAutoSimulating, setIsAutoSimulating] = useState(false);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [lastScenario, setLastScenario] = useState<{
+    title: string;
+    description: string;
+    algorithm: string;
+    action: string;
+  } | null>(null);
+
   // WebSocket state
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+
+  // Tactical Audio Synth (Web Audio API)
+  const playAlertSound = (severity: 'CRITICAL' | 'WARNING' | 'INFO' = 'CRITICAL') => {
+    if (!isAudioEnabled) return;
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if (severity === 'CRITICAL') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.25);
+      } else {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+      }
+    } catch {
+      // AudioContext blocked before first user gesture
+    }
+  };
+
+  const addToast = (title: string, message: string, severity: 'CRITICAL' | 'WARNING' | 'INFO' = 'INFO') => {
+    const newToast: ToastItem = {
+      id: Math.random().toString(36).substring(2, 9),
+      title,
+      message,
+      severity,
+      timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
+    };
+    setToasts((prev) => [newToast, ...prev.slice(0, 3)]);
+    playAlertSound(severity);
+  };
+
+  const handleDismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // Fetch initial base metadata
   useEffect(() => {
@@ -89,6 +151,11 @@ export const App: React.FC = () => {
             setSightings((prev) => [msg.data, ...prev.slice(0, 100)]);
             if (msg.alerts && msg.alerts.length > 0) {
               setAlerts((prev) => [...msg.alerts, ...prev]);
+              addToast(
+                `ALERT: ${msg.alerts[0].alert_type}`,
+                `${msg.alerts[0].plate} flagged at ${msg.alerts[0].camera_name || 'Junction'}`,
+                'CRITICAL'
+              );
             }
           }
         } catch (e) {
@@ -115,6 +182,82 @@ export const App: React.FC = () => {
     setActiveNav('trajectories');
   };
 
+  // Judge Demo Trigger Handlers
+  const handleTriggerGhostPlate = async () => {
+    try {
+      const res = await fetch('/api/simulate/ghost-plate', { method: 'POST' });
+      const data = await res.json();
+      setSelectedPlate('DL 8C AB 9110');
+      setLastScenario({
+        title: 'Ghost Vehicle Teleportation / Cloned License Plate Alert',
+        algorithm: 'DIJKSTRA MIN TRANSIT VIOLATION',
+        description: 'Plate DL 8C AB 9110 was detected at Connaught Place and IGI Airport within 15 seconds (14.5 km traversal requires min 14 mins).',
+        action: 'Immediate PCR Intercept unit Sher-2 dispatched to Dhaula Kuan NH-48 bottleneck.',
+      });
+      addToast(
+        'GHOST VEHICLE DETECTED',
+        'DL 8C AB 9110 detected at 2 distant junctions simultaneously.',
+        'CRITICAL'
+      );
+      if (data.alert) {
+        setAlerts((prev) => [data.alert, ...prev]);
+      }
+    } catch {
+      setSelectedPlate('DL 8C AB 9110');
+      setLastScenario({
+        title: 'Ghost Vehicle Teleportation / Cloned License Plate Alert',
+        algorithm: 'DIJKSTRA MIN TRANSIT VIOLATION',
+        description: 'Plate DL 8C AB 9110 detected across distant nodes. Cloned plate flagged.',
+        action: 'Patrol dispatch alerted at Dhaula Kuan bottleneck.',
+      });
+      addToast('GHOST VEHICLE DETECTED', 'DL 8C AB 9110 flagged for cloned plate.', 'CRITICAL');
+    }
+  };
+
+  const handleTriggerHitAndRun = async () => {
+    try {
+      const res = await fetch('/api/simulate/hit-and-run', { method: 'POST' });
+      const data = await res.json();
+      setSelectedPlate('DL 1C WX 0007');
+      setLastScenario({
+        title: 'Wanted Hit-and-Run Vehicle Ingestion Alert',
+        algorithm: 'MARKOV CHAIN INTERCEPT ETA',
+        description: 'Dark Grey Toyota Fortuner 4x4 (DL 1C WX 0007) spotted fleeing north from India Gate corridor at 88 km/h.',
+        action: 'Interception blockade initiated at Kashmere Gate Outer Ring corridor.',
+      });
+      addToast(
+        'HIT-AND-RUN ALERT',
+        'DL 1C WX 0007 spotted fleeing towards ITO corridor.',
+        'CRITICAL'
+      );
+      if (data.alert) {
+        setAlerts((prev) => [data.alert, ...prev]);
+      }
+    } catch {
+      setSelectedPlate('DL 1C WX 0007');
+      setLastScenario({
+        title: 'Wanted Hit-and-Run Vehicle Alert',
+        algorithm: 'MARKOV CHAIN INTERCEPT',
+        description: 'DL 1C WX 0007 spotted fleeing towards ITO.',
+        action: 'Interception blockade active.',
+      });
+      addToast('HIT-AND-RUN ALERT', 'DL 1C WX 0007 spotted fleeing corridor.', 'CRITICAL');
+    }
+  };
+
+  const handleSimulateTick = async () => {
+    try {
+      const res = await fetch('/api/simulate/tick', { method: 'POST' });
+      const data = await res.json();
+      if (data.sighting) {
+        setSightings((prev) => [data.sighting, ...prev.slice(0, 100)]);
+        addToast('ANPR STREAM SIGHTING', `${data.sighting.plate} logged at ${data.sighting.camera_id}`, 'INFO');
+      }
+    } catch (e) {
+      console.warn('Simulation tick error', e);
+    }
+  };
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#f4f7fb] text-slate-800 font-sans">
       {/* 1. Left Sidebar */}
@@ -138,7 +281,29 @@ export const App: React.FC = () => {
           onOpenNotifications={() => setIsNotificationsOpen(!isNotificationsOpen)}
           alertCount={alerts.length || 3}
           isLive={wsConnected}
+          isJudgeBarOpen={isJudgeBarOpen}
+          onToggleJudgeBar={() => setIsJudgeBarOpen(!isJudgeBarOpen)}
+          isAudioEnabled={isAudioEnabled}
+          onToggleAudio={() => setIsAudioEnabled(!isAudioEnabled)}
+          onOpenCitizenPWA={() => setIsCitizenPWAOpen(true)}
         />
+
+        {/* Hackathon Judge Demo Bar */}
+        {isJudgeBarOpen && (
+          <JudgeDemoBar
+            onSimulateTick={handleSimulateTick}
+            onTriggerHitAndRun={handleTriggerHitAndRun}
+            onTriggerGhostPlate={handleTriggerGhostPlate}
+            onOpenDashcam={() => setIsDashcamOpen(true)}
+            onOpenNlSearch={() => setActiveNav('overview')}
+            onOpenConsecutiveTracker={() => setIsConsecutiveTrackerOpen(true)}
+            onOpenLiveVehiclesDB={() => setIsLiveVehiclesDBOpen(true)}
+            isAutoSimulating={isAutoSimulating}
+            onToggleAutoSim={() => setIsAutoSimulating(!isAutoSimulating)}
+            lastScenario={lastScenario}
+            onDismissScenario={() => setLastScenario(null)}
+          />
+        )}
 
         {/* Dynamic View Router */}
         {activeNav === 'overview' && (
@@ -274,64 +439,53 @@ export const App: React.FC = () => {
         )}
       </div>
 
+      {/* Floating Real-time Toast Notifications Container */}
+      <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
+
       {/* Slide-over Notifications Drawer */}
       {isNotificationsOpen && (
-        <div className="fixed inset-0 z-[600] flex justify-end bg-black/30 backdrop-blur-xs">
+        <div className="fixed inset-0 z-[600] flex justify-end bg-black/40 backdrop-blur-xs">
           <div className="w-[380px] bg-white h-full shadow-2xl p-5 flex flex-col justify-between border-l border-slate-200">
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center space-x-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
                   <h3 className="font-bold text-slate-800 text-sm">
-                    Priority Intelligence Alerts
+                    Priority Intelligence Alerts ({alerts.length})
                   </h3>
                 </div>
                 <button
                   onClick={() => setIsNotificationsOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 font-bold text-sm"
+                  className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer p-1"
                 >
                   ✕
                 </button>
               </div>
 
               <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(100vh-140px)] pr-1">
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl">
-                  <div className="flex justify-between items-start">
-                    <span className="font-mono text-xs font-bold text-rose-800">
-                      DL8CAF2381
-                    </span>
-                    <span className="text-[10px] font-mono text-rose-600">
-                      17:41:52
-                    </span>
-                  </div>
-                  <p className="text-xs font-bold text-slate-800 mt-1">
-                    Ghost Plate Detected
-                  </p>
-                  <p className="text-[11px] text-slate-600 mt-0.5">
-                    Logged at CAM_03 concurrent with CAM_01 within Δt &lt; 30s.
-                  </p>
-                </div>
-
                 {alerts.map((alt) => (
                   <div
                     key={alt.id}
-                    className="p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                    className="p-3 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition"
                   >
                     <div className="flex justify-between items-start">
-                      <span className="font-mono text-xs font-bold text-slate-800">
+                      <span className="font-mono text-xs font-black text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
                         {alt.plate}
                       </span>
                       <span className="text-[10px] font-mono text-slate-400">
-                        {alt.camera_id}
+                        {alt.camera_name || alt.camera_id}
                       </span>
                     </div>
-                    <p className="text-xs font-semibold text-slate-700 mt-1">
-                      {alt.alert_type}
+                    <p className="text-xs font-bold text-slate-800 mt-1.5 flex items-center gap-1">
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        alt.severity === 'CRITICAL' ? 'bg-rose-500' : 'bg-amber-500'
+                      }`} />
+                      <span>{alt.alert_type}</span>
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
                       {typeof alt.details === 'string'
                         ? alt.details
-                        : JSON.stringify(alt.details)}
+                        : alt.details?.message || JSON.stringify(alt.details)}
                     </p>
                   </div>
                 ))}
@@ -343,7 +497,7 @@ export const App: React.FC = () => {
                 setIsNotificationsOpen(false);
                 setIsLiveVehiclesDBOpen(true);
               }}
-              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm transition"
+              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer mt-4"
             >
               Open Live Vehicles Database
             </button>
@@ -372,14 +526,20 @@ export const App: React.FC = () => {
         isOpen={isDashcamOpen}
         onClose={() => setIsDashcamOpen(false)}
         cameras={cameras}
-        onUploadComplete={() => setIsNotificationsOpen(true)}
+        onUploadComplete={() => {
+          setIsNotificationsOpen(true);
+          addToast('DASHCAM ANPR PROCESSED', 'Vehicle plate recognized and injected into network.', 'INFO');
+        }}
       />
 
       {/* Citizen PWA Modal */}
       <CitizenPWAModal
         isOpen={isCitizenPWAOpen}
         onClose={() => setIsCitizenPWAOpen(false)}
-        onReportSubmitted={() => setIsNotificationsOpen(true)}
+        onReportSubmitted={(repPlate) => {
+          setIsNotificationsOpen(true);
+          addToast('CITIZEN INCIDENT REPORTED', `Target plate ${repPlate} flagged on city watchlist.`, 'WARNING');
+        }}
       />
     </div>
   );

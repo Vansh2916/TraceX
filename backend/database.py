@@ -1,15 +1,35 @@
+import os
+import sys
+from pathlib import Path
+
+_backend_dir = Path(__file__).resolve().parent
+_root_dir = _backend_dir.parent
+if str(_root_dir) not in sys.path:
+    sys.path.insert(0, str(_root_dir))
+if str(_backend_dir) not in sys.path:
+    sys.path.insert(0, str(_backend_dir))
+
 import sqlite3
 import json
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
-from backend.engine import DELHI_CAMERAS, haversine_km
 
-DB_FILE = "crusaders.db"
+try:
+    from backend.engine import DELHI_CAMERAS, haversine_km
+except ImportError:
+    from engine import DELHI_CAMERAS, haversine_km
+
+DB_FILE = os.environ.get("DB_PATH", str(_backend_dir / "crusaders.db"))
 
 def get_db_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=15.0)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+    except Exception:
+        pass
     return conn
 
 def init_db():
@@ -102,22 +122,22 @@ def init_db():
     conn.close()
 
 def seed_db_if_empty():
+    init_db()
     conn = get_db_connection()
     cur = conn.cursor()
 
     cur.execute("SELECT COUNT(*) as count FROM sightings")
     cnt = cur.fetchone()["count"]
     if cnt > 20:
-        conn.close()  # FIX BUG 1: close only on early return, not before seeding
+        conn.close()
         return
 
     print("[Crusaders DB] Seeding initial real Delhi traffic & intelligence records...")
-    from backend.seed_real_data import seed_real_delhi_surveillance
+    try:
+        from backend.seed_real_data import seed_real_delhi_surveillance
+    except ImportError:
+        from seed_real_data import seed_real_delhi_surveillance
     seed_real_delhi_surveillance()
-
-    # FIX BUG 5: seed_real_delhi_surveillance() already inserts cameras, watchlist,
-    # sightings, and alerts — the duplicate block below has been removed to prevent
-    # UNIQUE constraint failures on cameras.id and watchlist.plate.
     print("[Crusaders DB] Database initialization and seed completed.")
 
 def insert_live_streaming_vehicle(

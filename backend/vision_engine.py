@@ -189,7 +189,10 @@ def local_tesseract_ocr(image_bytes: bytes) -> Optional[str]:
         logger.debug(f"Local tesseract OCR skipped: {e}")
     return None
 
-from backend.llm_client import call_vision_llm
+try:
+    from backend.llm_client import call_vision_llm
+except ImportError:
+    from llm_client import call_vision_llm
 
 async def analyze_vehicle_photo(image_bytes: bytes, filename: str) -> Dict[str, Any]:
     """

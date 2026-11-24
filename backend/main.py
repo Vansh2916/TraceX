@@ -1,4 +1,14 @@
 import os
+import sys
+from pathlib import Path
+
+_backend_dir = Path(__file__).resolve().parent
+_root_dir = _backend_dir.parent
+if str(_root_dir) not in sys.path:
+    sys.path.insert(0, str(_root_dir))
+if str(_backend_dir) not in sys.path:
+    sys.path.insert(0, str(_backend_dir))
+
 import json
 import time
 import random
@@ -15,13 +25,22 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
-from backend.database import init_db, seed_db_if_empty, get_db_connection, insert_live_streaming_vehicle, get_live_streaming_vehicles
-from backend.engine import city_engine, DELHI_CAMERAS, PCR_UNITS, haversine_km
-from backend.gemini_nl import execute_nl_to_sql
-from backend.vision_engine import analyze_vehicle_photo
-from backend.map_view import get_standalone_map_html
-from backend.rtsp_simulator import CAMERA_STREAM_PROFILES, get_all_camera_streams, get_ffmpeg_rtsp_command
-from backend.stream_worker import stream_worker
+try:
+    from backend.database import init_db, seed_db_if_empty, get_db_connection, insert_live_streaming_vehicle, get_live_streaming_vehicles
+    from backend.engine import city_engine, DELHI_CAMERAS, PCR_UNITS, haversine_km
+    from backend.gemini_nl import execute_nl_to_sql
+    from backend.vision_engine import analyze_vehicle_photo
+    from backend.map_view import get_standalone_map_html
+    from backend.rtsp_simulator import CAMERA_STREAM_PROFILES, get_all_camera_streams, get_ffmpeg_rtsp_command
+    from backend.stream_worker import stream_worker
+except ImportError:
+    from database import init_db, seed_db_if_empty, get_db_connection, insert_live_streaming_vehicle, get_live_streaming_vehicles
+    from engine import city_engine, DELHI_CAMERAS, PCR_UNITS, haversine_km
+    from gemini_nl import execute_nl_to_sql
+    from vision_engine import analyze_vehicle_photo
+    from map_view import get_standalone_map_html
+    from rtsp_simulator import CAMERA_STREAM_PROFILES, get_all_camera_streams, get_ffmpeg_rtsp_command
+    from stream_worker import stream_worker
 
 # FIX BUG 6: replace deprecated @app.on_event("startup") with lifespan context manager
 @asynccontextmanager
@@ -891,7 +910,10 @@ class MapConfigRequest(BaseModel):
 
 @app.get("/api/config/map")
 def get_map_config():
-    from backend.llm_client import load_keys
+    try:
+        from backend.llm_client import load_keys
+    except ImportError:
+        from llm_client import load_keys
     load_keys()
     provider = os.environ.get("MAP_PROVIDER", "OSM").upper()
     api_key = (
@@ -1070,18 +1092,18 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception:
         manager.disconnect(websocket)
 
-# FIX BUG 11: Mount frontend at /app instead of / to avoid shadowing /api/* routes.
-# All API routes use /api/* prefix so there is no conflict, but mounting at /app is
-# safer and more explicit — the SPA is accessible at http://host:port/app/
+# Static files and frontend SPA routing
 dist_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
 if os.path.exists(dist_path):
+    # Mount subdirectories explicitly for root assets (JS chunks, CSS, images, footage)
+    for sub in ["assets", "mockup_assets", "sample_cars", "footage"]:
+        p = os.path.join(dist_path, sub)
+        if os.path.exists(p):
+            app.mount(f"/{sub}", StaticFiles(directory=p), name=sub)
+
+    # Legacy /app mount compatibility
     app.mount("/app", StaticFiles(directory=dist_path, html=True), name="static")
 
-    @app.get("/")
-    def root_redirect():
-        return FileResponse(os.path.join(dist_path, "index.html"))
-
-    footage_path = os.path.join(dist_path, "footage")
-    if os.path.exists(footage_path):
-        app.mount("/footage", StaticFiles(directory=footage_path), name="footage")
+    # Root single-page application mount (placed last after all /api/* routes)
+    app.mount("/", StaticFiles(directory=dist_path, html=True), name="frontend")
 

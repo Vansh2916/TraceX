@@ -1,12 +1,26 @@
 import os
+import sys
+from pathlib import Path
+
+_backend_dir = Path(__file__).resolve().parent
+_root_dir = _backend_dir.parent
+if str(_root_dir) not in sys.path:
+    sys.path.insert(0, str(_root_dir))
+if str(_backend_dir) not in sys.path:
+    sys.path.insert(0, str(_backend_dir))
+
 import json
 import time
 import random
 from datetime import datetime, timedelta
 import sqlite3
-from backend.engine import DELHI_CAMERAS, PCR_UNITS
 
-DB_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "crusaders.db")
+try:
+    from backend.engine import DELHI_CAMERAS, PCR_UNITS
+    from backend.database import DB_FILE, get_db_connection, init_db
+except ImportError:
+    from engine import DELHI_CAMERAS, PCR_UNITS
+    from database import DB_FILE, get_db_connection, init_db
 
 # Real Delhi NCR Vehicle Models and Real Registration Patterns
 REAL_VEHICLES = [
@@ -71,7 +85,8 @@ REAL_WATCHLIST = [
 ]
 
 def seed_real_delhi_surveillance():
-    conn = sqlite3.connect(DB_FILE)
+    init_db()
+    conn = get_db_connection()
     cur = conn.cursor()
 
     # Clear old data for pristine presentation

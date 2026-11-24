@@ -2,7 +2,10 @@
 Configuration Helper Utilities for TraceX.
 Provides convenience wrappers for accessing active runtime parameters.
 """
-from backend.config import get_settings
+try:
+    from backend.config import get_settings
+except ImportError:
+    from config import get_settings
 
 def get_database_path() -> str:
     """Returns absolute path to SQLite database from configuration."""

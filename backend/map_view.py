@@ -1,7 +1,21 @@
 import os
+import sys
+from pathlib import Path
+
+_backend_dir = Path(__file__).resolve().parent
+_root_dir = _backend_dir.parent
+if str(_root_dir) not in sys.path:
+    sys.path.insert(0, str(_root_dir))
+if str(_backend_dir) not in sys.path:
+    sys.path.insert(0, str(_backend_dir))
+
 import json
 from typing import Dict, Any, List
-from backend.engine import DELHI_CAMERAS, PCR_UNITS, city_engine
+
+try:
+    from backend.engine import DELHI_CAMERAS, PCR_UNITS, city_engine
+except ImportError:
+    from engine import DELHI_CAMERAS, PCR_UNITS, city_engine
 
 def get_standalone_map_html() -> str:
     """
@@ -9,7 +23,10 @@ def get_standalone_map_html() -> str:
     with CartoDB / Mapbox / MapTiler Dark Matter tiles, live WebSocket telemetry, 12 camera nodes,
     directed NetworkX arterial corridors, PCR patrol units, and trajectory animations.
     """
-    from backend.llm_client import load_keys
+    try:
+        from backend.llm_client import load_keys
+    except ImportError:
+        from llm_client import load_keys
     load_keys()
 
     provider = os.environ.get("MAP_PROVIDER", "OSM").upper()

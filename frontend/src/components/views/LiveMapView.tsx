@@ -1,203 +1,342 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Camera } from '../../types';
-import { MapPin, Video, Search, ChevronDown, Crosshair, Plus, Minus, Layers, Radio } from 'lucide-react';
+import { Camera, PCRUnit } from '../../types';
+import {
+  MapPin,
+  Video,
+  Search,
+  Crosshair,
+  Plus,
+  Minus,
+  Radio,
+  Shield,
+  Activity,
+  Layers,
+  Car,
+  Filter,
+} from 'lucide-react';
 
 interface LiveMapViewProps {
   cameras: Camera[];
   onOpenFeed?: (camId: string) => void;
 }
 
+const DEFAULT_PCR_UNITS: PCRUnit[] = [
+  { id: 'PCR_01', callsign: 'Sher-1 (Connaught Place)', station: 'Barakhamba PS', lat: 28.6310, lon: 77.2210, officer: 'SI Rajesh Kumar', vehicle: 'Toyota Innova' },
+  { id: 'PCR_02', callsign: 'Sher-2 (India Gate)', station: 'Tilak Marg PS', lat: 28.6140, lon: 77.2310, officer: 'ASI Vikram Singh', vehicle: 'Mahindra Scorpio' },
+  { id: 'PCR_03', callsign: 'Cheetah-1 (Dhaula Kuan)', station: 'Delhi Cantt PS', lat: 28.5910, lon: 77.1650, officer: 'Insp. Amit Sharma', vehicle: 'Maruti Ertiga' },
+  { id: 'PCR_04', callsign: 'Cheetah-2 (AIIMS Ring Road)', station: 'Hauz Khas PS', lat: 28.5680, lon: 77.2080, officer: 'HC Pradeep', vehicle: 'Toyota Innova' },
+];
+
 export const LiveMapView: React.FC<LiveMapViewProps> = ({ cameras, onOpenFeed }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
-  const [selectedCam, setSelectedCam] = useState<string | null>(null);
-  const [searchFilter, setSearchFilter] = useState('');
+  const layersRef = useRef<{
+    camerasLayer: L.LayerGroup;
+    pcrLayer: L.LayerGroup;
+    edgesLayer: L.LayerGroup;
+  } | null>(null);
 
+  const [selectedCam, setSelectedCam] = useState<Camera | null>(null);
+  const [searchFilter, setSearchFilter] = useState('');
+  const [zoneFilter, setZoneFilter] = useState<string>('ALL');
+
+  // 1. Initialize Map once
   useEffect(() => {
     if (!mapContainerRef.current) return;
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
-      mapInstanceRef.current = null;
-    }
+    if (mapInstanceRef.current) return;
 
     const map = L.map(mapContainerRef.current, {
       center: [28.6190, 77.2250],
-      zoom: 13,
+      zoom: 12.5,
       zoomControl: false,
       attributionControl: false,
     });
     mapInstanceRef.current = map;
 
-    // Esri Aerial Satellite
+    // CartoDB Dark Matter Base
     L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
       {
         maxZoom: 19,
-        className: 'satellite-night-tiles',
+        subdomains: 'abcd',
       }
     ).addTo(map);
 
-    // Reference roads
+    // Street overlay
     L.tileLayer(
       'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
       {
         maxZoom: 19,
-        opacity: 0.65,
+        opacity: 0.35,
       }
     ).addTo(map);
 
-    // Add 12 camera markers
-    const cameraIcon = L.divIcon({
-      className: 'custom-camera-marker',
-      html: `
-        <div class="w-8 h-8 rounded-full bg-blue-600 border-2 border-white shadow-lg flex items-center justify-center text-white cursor-pointer hover:scale-125 transition-transform">
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <path d="m22 8-6 4 6 4V8Z"/>
-            <rect width="14" height="12" x="2" y="6" rx="2"/>
-          </svg>
-        </div>
-      `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
-    });
+    const edgesLayer = L.layerGroup().addTo(map);
+    const camerasLayer = L.layerGroup().addTo(map);
+    const pcrLayer = L.layerGroup().addTo(map);
 
-    cameras.forEach((cam) => {
-      const marker = L.marker([cam.lat, cam.lon], { icon: cameraIcon }).addTo(map);
-      marker.on('click', () => {
-        setSelectedCam(cam.id);
-        if (onOpenFeed) onOpenFeed(cam.id);
-      });
-      marker.bindTooltip(
-        `<div class="text-xs font-bold font-sans">${cam.id}: ${cam.name}</div><div class="text-[10px] text-emerald-400 font-mono">● LIVE 1080p • Speed: ${cam.speed_limit} km/h</div>`,
-        { direction: 'top', className: 'custom-tooltip' }
-      );
-    });
+    layersRef.current = {
+      camerasLayer,
+      pcrLayer,
+      edgesLayer,
+    };
 
     return () => {
       map.remove();
       mapInstanceRef.current = null;
+      layersRef.current = null;
     };
-  }, [cameras]);
+  }, []);
 
-  const handleFocusCamera = (cam: Camera) => {
-    setSelectedCam(cam.id);
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.setView([cam.lat, cam.lon], 15, { animate: true });
+  // 2. Draw Camera Nodes and Network Arteries
+  useEffect(() => {
+    if (!layersRef.current || cameras.length === 0) return;
+    const { camerasLayer, edgesLayer, pcrLayer } = layersRef.current;
+    camerasLayer.clearLayers();
+    edgesLayer.clearLayers();
+    pcrLayer.clearLayers();
+
+    // Filter cameras based on search and zone
+    const filteredCameras = cameras.filter((c) => {
+      const matchSearch =
+        c.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+        c.id.toLowerCase().includes(searchFilter.toLowerCase());
+      const matchZone = zoneFilter === 'ALL' || c.zone === zoneFilter;
+      return matchSearch && matchZone;
+    });
+
+    // Draw connecting arterial corridors
+    for (let i = 0; i < cameras.length - 1; i++) {
+      const c1 = cameras[i];
+      const c2 = cameras[i + 1];
+      L.polyline([[c1.lat, c1.lon], [c2.lat, c2.lon]], {
+        color: '#1e3a8a',
+        weight: 2,
+        opacity: 0.4,
+        dashArray: '4, 4',
+      }).addTo(edgesLayer);
     }
+
+    // Camera Icon Div
+    const cameraIcon = (isSelected: boolean) =>
+      L.divIcon({
+        className: 'custom-camera-marker',
+        html: `
+          <div class="relative group cursor-pointer">
+            <div class="w-8 h-8 rounded-full ${isSelected ? 'bg-cyan-500 scale-125 ring-4 ring-cyan-400/50' : 'bg-blue-600 hover:bg-blue-500 hover:scale-110'} border-2 border-white shadow-xl flex items-center justify-center text-white transition-all">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="m22 8-6 4 6 4V8Z"/>
+                <rect width="14" height="12" x="2" y="6" rx="2"/>
+              </svg>
+            </div>
+            <div class="absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-slate-900 animate-pulse"></div>
+          </div>
+        `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+
+    // Place filtered cameras
+    filteredCameras.forEach((cam) => {
+      const marker = L.marker([cam.lat, cam.lon], {
+        icon: cameraIcon(selectedCam?.id === cam.id),
+      });
+
+      marker.on('click', () => {
+        setSelectedCam(cam);
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo([cam.lat, cam.lon], 14, { duration: 0.8 });
+        }
+      });
+
+      marker.bindTooltip(
+        `<div class="p-1 font-sans">
+          <div class="text-[11px] font-bold text-white flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            ${cam.id}: ${cam.name}
+          </div>
+          <div class="text-[9.5px] text-slate-300 font-mono mt-0.5">${cam.zone} • Speed: ${cam.speed_limit} km/h</div>
+        </div>`,
+        { direction: 'top', className: 'tactical-map-tooltip' }
+      );
+      marker.addTo(camerasLayer);
+    });
+
+    // Draw PCR Patrol Units with flashing blue-red beacon
+    const pcrIcon = (callsign: string) =>
+      L.divIcon({
+        className: 'custom-pcr-marker',
+        html: `
+          <div class="relative flex items-center justify-center">
+            <div class="absolute w-8 h-8 rounded-full bg-blue-500/30 animate-ping"></div>
+            <div class="w-7 h-7 rounded-full bg-slate-900 border-2 border-blue-400 shadow-lg flex items-center justify-center text-cyan-300 z-10">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/>
+              </svg>
+            </div>
+            <div class="absolute -top-5 left-1/2 -translate-x-1/2 bg-slate-950/90 text-blue-300 border border-blue-500/50 px-1.5 py-0.2 rounded text-[8.5px] font-mono whitespace-nowrap shadow-md pointer-events-none">
+              ${callsign.split(' ')[0]}
+            </div>
+          </div>
+        `,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      });
+
+    DEFAULT_PCR_UNITS.forEach((unit) => {
+      const marker = L.marker([unit.lat, unit.lon], { icon: pcrIcon(unit.callsign) });
+      marker.bindTooltip(
+        `<div class="p-1 font-sans">
+          <div class="text-[11px] font-bold text-cyan-300">🚓 ${unit.callsign}</div>
+          <div class="text-[9.5px] text-slate-300 font-mono">${unit.station} • ${unit.officer}</div>
+          <div class="text-[9px] text-emerald-400 font-mono">STATUS: ON PATROL (FAST INTERCEPT)</div>
+        </div>`,
+        { direction: 'top', className: 'tactical-map-tooltip' }
+      );
+      marker.addTo(pcrLayer);
+    });
+  }, [cameras, searchFilter, zoneFilter, selectedCam]);
+
+  const handleZoomIn = () => mapInstanceRef.current?.zoomIn();
+  const handleZoomOut = () => mapInstanceRef.current?.zoomOut();
+  const handleRecenter = () => {
+    mapInstanceRef.current?.setView([28.6190, 77.2250], 12.5);
+    setSelectedCam(null);
   };
 
-  const filteredCameras = cameras.filter((c) =>
-    c.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    c.id.toLowerCase().includes(searchFilter.toLowerCase())
-  );
-
   return (
-    <div className="flex-1 flex h-full bg-[#f4f7fb] p-6 space-y-4 overflow-hidden relative">
-      {/* Left Expanded Map Canvas */}
-      <div className="flex-1 h-full bg-slate-950 rounded-2xl overflow-hidden border border-slate-200/90 shadow-xs relative">
-        <div ref={mapContainerRef} className="w-full h-full" />
-
-        {/* Top Controls Overlay */}
-        <div className="absolute top-4 left-4 z-[400] flex items-center space-x-2">
-          <div className="bg-slate-900/90 backdrop-blur text-white text-xs px-3.5 py-1.5 rounded-full border border-slate-700/60 font-semibold flex items-center space-x-1.5 shadow-md">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Delhi NCR Live Surveillance Grid (12 / 12 Active)</span>
-          </div>
+    <div className="relative flex-1 h-full w-full bg-slate-950 overflow-hidden flex flex-col select-none">
+      {/* Top Filter & Toolbar */}
+      <div className="absolute top-4 left-4 right-4 z-[400] flex items-center justify-between pointer-events-none gap-3">
+        {/* Search Input */}
+        <div className="pointer-events-auto flex items-center bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-full px-3.5 py-1.5 shadow-xl w-72">
+          <Search className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
+          <input
+            type="text"
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            placeholder="Search junction / camera..."
+            className="w-full bg-transparent text-xs text-white placeholder-slate-400 focus:outline-none"
+          />
         </div>
 
-        {/* Zoom Controls */}
-        <div className="absolute top-16 left-4 z-[400] flex flex-col space-y-1.5">
-          <button
-            onClick={() => mapInstanceRef.current?.zoomIn()}
-            className="w-8 h-8 rounded-xl bg-slate-900/90 backdrop-blur text-white hover:bg-slate-800 flex items-center justify-center border border-slate-700/60 shadow transition text-sm"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => mapInstanceRef.current?.zoomOut()}
-            className="w-8 h-8 rounded-xl bg-slate-900/90 backdrop-blur text-white hover:bg-slate-800 flex items-center justify-center border border-slate-700/60 shadow transition text-sm"
-          >
-            <Minus className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => mapInstanceRef.current?.setView([28.6190, 77.2250], 13)}
-            className="w-8 h-8 rounded-xl bg-slate-900/90 backdrop-blur text-white hover:bg-slate-800 flex items-center justify-center border border-slate-700/60 shadow transition text-sm"
-          >
-            <Crosshair className="w-4 h-4 text-cyan-400" />
-          </button>
+        {/* Zone Filters */}
+        <div className="pointer-events-auto flex items-center bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-full p-1 shadow-xl">
+          {['ALL', 'Central Delhi', 'South Delhi', 'Outer Ring Road'].map((zone) => (
+            <button
+              key={zone}
+              onClick={() => setZoneFilter(zone)}
+              className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                zoneFilter === zone
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {zone === 'ALL' ? 'All Corridors' : zone}
+            </button>
+          ))}
+        </div>
+
+        {/* Tactical Feed Pill */}
+        <div className="pointer-events-auto flex items-center space-x-2 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-full px-3 py-1.5 shadow-xl text-xs text-white">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="font-mono font-bold">{cameras.length || 12} Cameras Active</span>
+          <span className="text-slate-400">•</span>
+          <span className="font-mono text-cyan-300">4 PCR Units</span>
         </div>
       </div>
 
-      {/* Right Camera Directory Panel */}
-      <div className="w-[320px] shrink-0 ml-4 h-full bg-white rounded-2xl border border-slate-200/90 shadow-xs p-4 flex flex-col justify-between">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center space-x-2">
-              <Video className="w-4 h-4 text-blue-600" />
-              <h3 className="text-sm font-bold text-slate-800">Camera Directory</h3>
-            </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
-              12 ONLINE
-            </span>
-          </div>
+      {/* Map Surface */}
+      <div ref={mapContainerRef} className="flex-1 w-full h-full" />
 
-          {/* Search bar */}
-          <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
-            <Search className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
-            <input
-              type="text"
-              placeholder="Filter cameras..."
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              className="bg-transparent border-none outline-none w-full text-slate-700 placeholder-slate-400 text-xs"
-            />
-          </div>
-
-          {/* Camera List */}
-          <div className="space-y-1.5 overflow-y-auto max-h-[calc(100vh-250px)] pr-1">
-            {filteredCameras.map((cam) => (
-              <div
-                key={cam.id}
-                onClick={() => handleFocusCamera(cam)}
-                className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-between text-xs ${
-                  selectedCam === cam.id
-                    ? 'bg-blue-50/80 border-blue-300 ring-2 ring-blue-500/20'
-                    : 'bg-slate-50/60 hover:bg-slate-100 border-slate-100'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center space-x-1.5">
-                    <span className="font-mono font-bold text-blue-700">{cam.id}</span>
-                    <span className="text-[10px] text-emerald-600 font-medium">● 1080p</span>
-                  </div>
-                  <p className="text-[11.5px] font-semibold text-slate-800 truncate max-w-[190px] mt-0.5">
-                    {cam.name}
-                  </p>
-                  <span className="text-[10px] text-slate-400">{cam.zone}</span>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (onOpenFeed) onOpenFeed(cam.id);
-                  }}
-                  className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-blue-600 hover:text-white transition text-[10px] font-bold"
-                >
-                  Live
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
+      {/* Floating Left Zoom & Recenter Controls */}
+      <div className="absolute top-20 left-4 z-[400] flex flex-col space-y-1.5 pointer-events-auto">
         <button
-          onClick={() => onOpenFeed?.('CAM_01')}
-          className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-sm transition"
+          onClick={handleZoomIn}
+          className="w-8 h-8 rounded-lg bg-slate-900/90 backdrop-blur text-slate-200 hover:text-white hover:bg-slate-800 flex items-center justify-center border border-slate-700/70 shadow-lg transition text-sm cursor-pointer"
+          title="Zoom In"
         >
-          Open Multi-Camera Stream
+          <Plus className="w-4 h-4" />
+        </button>
+        <button
+          onClick={handleZoomOut}
+          className="w-8 h-8 rounded-lg bg-slate-900/90 backdrop-blur text-slate-200 hover:text-white hover:bg-slate-800 flex items-center justify-center border border-slate-700/70 shadow-lg transition text-sm cursor-pointer"
+          title="Zoom Out"
+        >
+          <Minus className="w-4 h-4" />
+        </button>
+        <button
+          onClick={handleRecenter}
+          className="w-8 h-8 rounded-lg bg-slate-900/90 backdrop-blur text-slate-200 hover:text-white hover:bg-slate-800 flex items-center justify-center border border-slate-700/70 shadow-lg transition text-sm cursor-pointer"
+          title="Recenter Map"
+        >
+          <Crosshair className="w-4 h-4 text-cyan-400" />
         </button>
       </div>
+
+      {/* Floating Bottom Left Legend */}
+      <div className="absolute bottom-4 left-4 z-[400] pointer-events-auto bg-slate-950/90 backdrop-blur-md border border-slate-800/80 rounded-xl px-4 py-3 text-xs text-slate-300 flex flex-col space-y-1.5 shadow-2xl">
+        <div className="text-[10px] font-bold tracking-wider text-slate-400 uppercase font-mono">Tactical Overlays</div>
+        <div className="flex items-center space-x-2">
+          <div className="w-3 h-3 rounded-full bg-blue-600 border border-white flex items-center justify-center">
+            <div className="w-1 h-1 bg-white rounded-full" />
+          </div>
+          <span>12 ANPR Camera Stations</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse" />
+          <span>PCR Patrol Units (Active Telemetry)</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="w-5 h-0.5 bg-blue-500/60 inline-block border-t border-dashed border-blue-400" />
+          <span>Arterial Corridor Interconnects</span>
+        </div>
+      </div>
+
+      {/* Selected Camera Drawer / HUD Modal */}
+      {selectedCam && (
+        <div className="absolute bottom-4 right-4 z-[400] pointer-events-auto w-84 bg-slate-900/95 backdrop-blur-xl border border-slate-700 rounded-2xl p-4 shadow-2xl space-y-3">
+          <div className="flex items-start justify-between border-b border-slate-800 pb-2">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="font-mono text-xs font-bold text-cyan-400">{selectedCam.id}</span>
+              </div>
+              <h4 className="text-sm font-bold text-white mt-0.5">{selectedCam.name}</h4>
+              <p className="text-[11px] text-slate-400 font-mono">{selectedCam.landmark}</p>
+            </div>
+            <button
+              onClick={() => setSelectedCam(null)}
+              className="text-slate-400 hover:text-white text-xs font-bold p-1 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-center text-xs">
+            <div className="bg-slate-800/60 p-2 rounded-xl border border-slate-700/50">
+              <span className="text-[10px] font-mono text-slate-400 block uppercase">Speed Limit</span>
+              <span className="font-mono text-sm font-black text-amber-400">{selectedCam.speed_limit} km/h</span>
+            </div>
+            <div className="bg-slate-800/60 p-2 rounded-xl border border-slate-700/50">
+              <span className="text-[10px] font-mono text-slate-400 block uppercase">Optical Status</span>
+              <span className="font-mono text-sm font-black text-emerald-400">99.2% OCR</span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              if (onOpenFeed) onOpenFeed(selectedCam.id);
+            }}
+            className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer"
+          >
+            <Video className="w-3.5 h-3.5" />
+            <span>Open High-Speed Live Feed</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

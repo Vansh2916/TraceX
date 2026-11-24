@@ -15,6 +15,11 @@ import {
   CheckCircle2,
   Calendar,
   Sparkles,
+  Search,
+  Eye,
+  Crosshair,
+  Plus,
+  Minus,
 } from 'lucide-react';
 
 interface TrajectoriesViewProps {
@@ -32,7 +37,17 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const layersRef = useRef<{
+    routeLayer: L.LayerGroup;
+    checkpointsLayer: L.LayerGroup;
+  } | null>(null);
+
   const [activePlate, setActivePlate] = useState(selectedPlate);
+  const [searchInput, setSearchInput] = useState('');
+
+  useEffect(() => {
+    if (selectedPlate) setActivePlate(selectedPlate);
+  }, [selectedPlate]);
 
   const trajectoriesData: Record<string, any> = {
     DL8CAF2381: {
@@ -103,65 +118,121 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
         lon: 77.2295,
       },
     },
+    'DL 1C WX 0007': {
+      plate: 'DL 1C WX 0007',
+      vehicle: 'Dark Grey Toyota Fortuner 4x4',
+      status: 'CRITICAL ALERT: HIT-AND-RUN SUSPECT',
+      confidence: '99.1%',
+      totalDistance: '8.15 km',
+      avgSpeed: '64.2 km/h',
+      maxSpeed: '91.0 km/h',
+      checkpoints: [
+        { id: 'CP_31', cam: 'CAM_02', name: 'India Gate C-Hexagon', time: '17:15:30', speed: '72 km/h', lat: 28.6129, lon: 77.2295, status: 'HIT_AND_RUN' },
+        { id: 'CP_32', cam: 'CAM_03', name: 'ITO Junction (Fled North)', time: '17:21:00', speed: '88 km/h', lat: 28.6289, lon: 77.2410, status: 'OVERSPEED' },
+        { id: 'CP_33', cam: 'CAM_04', name: 'Kashmere Gate Outer Ring', time: '17:27:45', speed: '62 km/h', lat: 28.6665, lon: 77.2332, status: 'RADAR_LOCK' },
+      ],
+      projected: {
+        cam: 'CAM_11',
+        name: 'Karol Bagh Radial Corridor',
+        eta: '17:32:00',
+        prob: '89%',
+        lat: 28.6515,
+        lon: 77.1905,
+      },
+    },
+    'DL 8C AB 9110': {
+      plate: 'DL 8C AB 9110',
+      vehicle: 'Silver Honda City',
+      status: 'CRITICAL: SYNTHETIC CLONED PLATE',
+      confidence: '99.4%',
+      totalDistance: '14.5 km',
+      avgSpeed: '3480 km/h (PHYSICALLY IMPOSSIBLE)',
+      maxSpeed: '3480 km/h',
+      checkpoints: [
+        { id: 'CP_41', cam: 'CAM_01', name: 'Connaught Place Outer Circle', time: '17:39:45', speed: '48 km/h', lat: 28.6328, lon: 77.2197, status: 'NORMAL' },
+        { id: 'CP_42', cam: 'CAM_07', name: 'IGI Airport T3 Terminal', time: '17:40:00', speed: '52 km/h', lat: 28.5562, lon: 77.1000, status: 'GHOST_CLONE' },
+      ],
+      projected: {
+        cam: 'CAM_06',
+        name: 'Dhaula Kuan Intercept Point',
+        eta: 'IMMEDIATE POLICE DISPATCH',
+        prob: '96%',
+        lat: 28.5921,
+        lon: 77.1616,
+      },
+    },
   };
 
   const curr = trajectoriesData[activePlate] || trajectoriesData.DL8CAF2381;
 
+  // 1. Initialize map once
   useEffect(() => {
     if (!mapContainerRef.current) return;
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
-      mapInstanceRef.current = null;
-    }
+    if (mapInstanceRef.current) return;
 
-    const firstPt = curr.checkpoints[0];
     const map = L.map(mapContainerRef.current, {
-      center: [firstPt.lat, firstPt.lon],
+      center: [28.6210, 77.2240],
       zoom: 13,
       zoomControl: false,
       attributionControl: false,
     });
     mapInstanceRef.current = map;
 
-    // High Res Aerial Satellite Tiles
+    // CartoDB Dark Matter
     L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
       {
         maxZoom: 19,
-        className: 'satellite-night-tiles',
+        subdomains: 'abcd',
       }
     ).addTo(map);
 
-    // Road lines
     L.tileLayer(
       'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
       {
         maxZoom: 19,
-        opacity: 0.65,
+        opacity: 0.35,
       }
     ).addTo(map);
 
-    // Build route coordinates
-    const routePoints: [number, number][] = curr.checkpoints.map((c: any) => [c.lat, c.lon]);
-    if (curr.projected) {
-      routePoints.push([curr.projected.lat, curr.projected.lon]);
-    }
+    const routeLayer = L.layerGroup().addTo(map);
+    const checkpointsLayer = L.layerGroup().addTo(map);
 
-    // Historical Glowing Polyline
+    layersRef.current = {
+      routeLayer,
+      checkpointsLayer,
+    };
+
+    return () => {
+      map.remove();
+      mapInstanceRef.current = null;
+      layersRef.current = null;
+    };
+  }, []);
+
+  // 2. Update Trajectory Graphics when active plate changes
+  useEffect(() => {
+    if (!layersRef.current || !mapInstanceRef.current) return;
+    const { routeLayer, checkpointsLayer } = layersRef.current;
+    routeLayer.clearLayers();
+    checkpointsLayer.clearLayers();
+
     const histPoints: [number, number][] = curr.checkpoints.map((c: any) => [c.lat, c.lon]);
+
+    // Historical Glowing Line
     L.polyline(histPoints, {
       color: '#0284c7',
       weight: 7,
-      opacity: 0.45,
+      opacity: 0.4,
       lineCap: 'round',
-    }).addTo(map);
+    }).addTo(routeLayer);
 
     L.polyline(histPoints, {
       color: '#38bdf8',
       weight: 3.5,
       opacity: 0.95,
       lineCap: 'round',
-    }).addTo(map);
+    }).addTo(routeLayer);
 
     // Projected Dashed Polyline
     if (curr.projected) {
@@ -172,242 +243,276 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
         weight: 3.5,
         opacity: 0.85,
         dashArray: '6, 8',
-      }).addTo(map);
+      }).addTo(routeLayer);
     }
 
-    // Checkpoint Markers
+    // Place Checkpoints
     curr.checkpoints.forEach((cp: any, idx: number) => {
       const isLast = idx === curr.checkpoints.length - 1;
-      const markerHtml = isLast
-        ? `
+      const isGhost = cp.status === 'GHOST_CLONE';
+      const isSpeed = cp.status === 'OVERSPEED';
+
+      const dotIcon = L.divIcon({
+        className: 'custom-checkpoint-marker',
+        html: `
           <div class="relative flex items-center justify-center">
-            <div class="absolute w-12 h-12 rounded-full bg-cyan-400/40 animate-ping"></div>
-            <div class="w-8 h-8 rounded-full bg-blue-600 border-2 border-cyan-300 text-white font-bold flex items-center justify-center text-xs shadow-lg">
+            ${isLast ? '<div class="absolute w-10 h-10 rounded-full bg-cyan-400/30 animate-ping"></div>' : ''}
+            <div class="w-7 h-7 rounded-full ${
+              isGhost
+                ? 'bg-purple-600 border-2 border-purple-300'
+                : isSpeed
+                ? 'bg-rose-600 border-2 border-rose-300'
+                : isLast
+                ? 'bg-cyan-500 border-2 border-white'
+                : 'bg-blue-600 border-2 border-white'
+            } shadow-lg flex items-center justify-center text-white text-[11px] font-bold z-10">
               ${idx + 1}
             </div>
-            <div class="absolute -top-6 whitespace-nowrap bg-black/90 text-cyan-300 px-2 py-0.5 rounded text-[10px] font-mono font-bold border border-cyan-500/60">
-              LOCKED
+            <div class="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-slate-950/90 text-slate-200 border border-slate-700 px-1.5 py-0.2 rounded text-[8.5px] font-mono whitespace-nowrap shadow-md pointer-events-none">
+              ${cp.time}
             </div>
-          </div>
-        `
-        : `
-          <div class="w-6 h-6 rounded-full bg-blue-600 border-2 border-white text-white font-bold flex items-center justify-center text-[10px] shadow-md">
-            ${idx + 1}
-          </div>
-        `;
-
-      const icon = L.divIcon({
-        className: 'custom-wp-marker',
-        html: markerHtml,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-      });
-
-      L.marker([cp.lat, cp.lon], { icon }).addTo(map).bindTooltip(
-        `<div class="text-xs font-sans font-bold">${cp.cam}: ${cp.name}</div><div class="text-[10px] font-mono text-slate-300">${cp.time} • ${cp.speed}</div>`,
-        { direction: 'top', className: 'custom-tooltip' }
-      );
-    });
-
-    // Projected Target Marker
-    if (curr.projected) {
-      const projIcon = L.divIcon({
-        className: 'proj-marker',
-        html: `
-          <div class="w-7 h-7 rounded-full bg-amber-500/90 border-2 border-amber-200 text-slate-900 font-bold flex items-center justify-center text-xs shadow-lg animate-pulse">
-            ★
           </div>
         `,
         iconSize: [28, 28],
         iconAnchor: [14, 14],
       });
-      L.marker([curr.projected.lat, curr.projected.lon], { icon: projIcon }).addTo(map).bindTooltip(
-        `<div class="text-xs font-bold text-amber-300">Projected Next: ${curr.projected.name}</div><div class="text-[10px] font-mono">P=${curr.projected.prob} • ETA: ${curr.projected.eta}</div>`,
-        { direction: 'top', className: 'custom-tooltip' }
+
+      const marker = L.marker([cp.lat, cp.lon], { icon: dotIcon });
+      marker.bindTooltip(
+        `<div class="p-1 font-sans">
+          <div class="text-[11px] font-bold text-white">${cp.name}</div>
+          <div class="text-[9.5px] text-slate-300 font-mono">Time: ${cp.time} • Speed: ${cp.speed}</div>
+          <div class="text-[9px] font-bold ${
+            isGhost ? 'text-purple-400' : isSpeed ? 'text-rose-400' : 'text-emerald-400'
+          } uppercase font-mono mt-0.5">${cp.status}</div>
+        </div>`,
+        { direction: 'top', className: 'tactical-map-tooltip' }
       );
+      marker.addTo(checkpointsLayer);
+    });
+
+    // Place Projected Destination Marker
+    if (curr.projected) {
+      const projIcon = L.divIcon({
+        className: 'custom-proj-marker',
+        html: `
+          <div class="relative flex items-center justify-center">
+            <div class="absolute w-9 h-9 rounded-full bg-amber-400/20 animate-pulse"></div>
+            <div class="w-7 h-7 rounded-full bg-amber-500 border-2 border-amber-200 shadow-lg flex items-center justify-center text-slate-950 text-xs font-black z-10">
+              ETA
+            </div>
+            <div class="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-950/95 text-amber-300 border border-amber-500/80 px-2 py-0.5 rounded text-[9px] font-mono font-bold whitespace-nowrap shadow-md pointer-events-none">
+              ${curr.projected.eta}
+            </div>
+          </div>
+        `,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      });
+
+      L.marker([curr.projected.lat, curr.projected.lon], { icon: projIcon })
+        .bindTooltip(
+          `<div class="p-1 font-sans">
+            <div class="text-[11px] font-bold text-amber-300">Projected Intercept: ${curr.projected.name}</div>
+            <div class="text-[9.5px] text-slate-300 font-mono">Markov Confidence: ${curr.projected.prob}</div>
+          </div>`,
+          { direction: 'top', className: 'tactical-map-tooltip' }
+        )
+        .addTo(checkpointsLayer);
     }
 
-    map.fitBounds(L.latLngBounds(routePoints), { padding: [50, 50] });
+    // Auto fit bounds smoothly
+    if (histPoints.length > 0) {
+      const allPoints = curr.projected ? [...histPoints, [curr.projected.lat, curr.projected.lon]] : histPoints;
+      const bounds = L.latLngBounds(allPoints as [number, number][]);
+      mapInstanceRef.current.flyToBounds(bounds, { padding: [50, 50], duration: 0.8 });
+    }
+  }, [activePlate, curr]);
 
-    return () => {
-      map.remove();
-      mapInstanceRef.current = null;
-    };
-  }, [activePlate]);
+  const handleSelectPlateInternal = (plate: string) => {
+    setActivePlate(plate);
+    if (onSelectPlate) onSelectPlate(plate);
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = searchInput.trim().toUpperCase();
+    if (clean && trajectoriesData[clean]) {
+      handleSelectPlateInternal(clean);
+      setSearchInput('');
+    } else if (clean) {
+      handleSelectPlateInternal(clean);
+      setSearchInput('');
+    }
+  };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#f4f7fb] p-6 space-y-5 overflow-y-auto">
-      {/* Top Banner & Vehicle Selector */}
-      <div className="flex items-center justify-between bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs">
+    <div className="flex-1 flex flex-col h-full bg-[#f4f7fb] overflow-hidden select-none">
+      {/* Top Banner Toolbar */}
+      <div className="bg-white border-b border-slate-200/90 px-6 py-3 flex items-center justify-between shrink-0 shadow-xs">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-2xs">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
             <Route className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center space-x-2.5">
+            <div className="flex items-center space-x-2">
               <h2 className="text-[17px] font-black text-slate-900 tracking-tight">
-                Corridor Trajectories & Pursuit Intelligence
+                Trajectory & Predictive Intercept Engine
               </h2>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                MARKOV INTERCEPTION
+                MARKOV + DIJKSTRA
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Multi-camera spatio-temporal route reconstruction and predictive next-junction intercept vector.
+            <p className="text-[11.5px] font-medium text-slate-500">
+              Spatiotemporal tracking of flagged vehicles across Delhi arterial checkpoints
             </p>
           </div>
         </div>
 
-        {/* Plate Switcher Tabs */}
+        {/* Quick Plate Switcher Buttons */}
         <div className="flex items-center space-x-2">
-          {Object.keys(trajectoriesData).map((p) => (
+          {Object.keys(trajectoriesData).slice(0, 4).map((p) => (
             <button
               key={p}
-              onClick={() => {
-                setActivePlate(p);
-                onSelectPlate?.(p);
-              }}
-              className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition flex items-center space-x-1.5 ${
+              onClick={() => handleSelectPlateInternal(p)}
+              className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer ${
                 activePlate === p
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  ? 'bg-slate-900 text-cyan-300 shadow-md border border-slate-700'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
               }`}
             >
-              <span>{p}</span>
-              {activePlate === p && <span className="w-1.5 h-1.5 rounded-full bg-cyan-300" />}
+              {p}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Main 2 Column Split */}
-      <div className="grid grid-cols-12 gap-5 flex-1 min-h-[500px]">
-        {/* Left 8 Cols: Map Canvas */}
-        <div className="col-span-8 bg-slate-950 rounded-2xl overflow-hidden border border-slate-200/90 shadow-xs relative flex flex-col">
-          <div ref={mapContainerRef} className="w-full h-full min-h-[460px]" />
+      {/* Main Trajectory Split View: Map (Left 65%) + Telemetry Drawer (Right 35%) */}
+      <div className="flex-1 grid grid-cols-12 gap-5 p-5 overflow-hidden">
+        {/* Left Map Card */}
+        <div className="col-span-8 bg-slate-950 rounded-2xl border border-slate-700/60 shadow-xl overflow-hidden relative flex flex-col">
+          <div ref={mapContainerRef} className="w-full h-full" />
 
-          {/* Map Overlay Header */}
-          <div className="absolute top-3 left-3 z-[400] flex items-center space-x-2">
-            <div className="bg-slate-900/90 backdrop-blur text-white text-xs px-3 py-1.5 rounded-full border border-slate-700/60 font-semibold flex items-center space-x-2">
-              <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-              <span>Live Trajectory: {activePlate}</span>
+          {/* Map Top Floating Overlay */}
+          <div className="absolute top-3 left-3 right-3 z-[400] flex items-center justify-between pointer-events-none">
+            <div className="pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-3.5 py-1.5 rounded-full text-xs font-mono font-bold flex items-center gap-2 shadow-lg">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span>Target Locked: {activePlate}</span>
+              <span className="text-slate-400">({curr.vehicle})</span>
             </div>
-          </div>
 
-          {/* Map Floating Legend */}
-          <div className="absolute bottom-3 left-3 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700/60 rounded-xl px-3 py-2 text-[11px] text-slate-200 flex items-center space-x-4 shadow-lg">
-            <div className="flex items-center space-x-1.5">
-              <span className="w-3 h-1 bg-cyan-400 inline-block rounded" />
-              <span>Traversed Path</span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <span className="w-3 h-1 bg-amber-400 inline-block rounded border-dashed" />
-              <span>Projected Next Path</span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block" />
-              <span>Camera Waypoints</span>
-            </div>
+            <button
+              onClick={onOpenLiveFeed}
+              className="pointer-events-auto bg-blue-600/90 hover:bg-blue-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-lg transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Radio className="w-3.5 h-3.5 text-cyan-200 animate-pulse" />
+              <span>CCTV Intercept Feed</span>
+            </button>
           </div>
         </div>
 
-        {/* Right 4 Cols: Trajectory Telemetry & Checkpoint Timeline */}
-        <div className="col-span-4 flex flex-col space-y-4">
-          {/* Target Summary Card */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
-                  Target Vehicle
+        {/* Right Telemetry & Checkpoints Panel */}
+        <div className="col-span-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5 flex flex-col justify-between overflow-y-auto">
+          <div className="space-y-4">
+            {/* Header info */}
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                  Telemetry Dossier
                 </span>
-                <div className="text-[18px] font-black font-mono text-slate-900 leading-tight">
-                  {curr.plate}
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
-                  Confidence
+                <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                  {curr.status}
                 </span>
-                <div className="text-[14px] font-bold text-emerald-600">
-                  {curr.confidence}
-                </div>
               </div>
+              <h3 className="text-xl font-black text-slate-900 font-mono mt-1">{curr.plate}</h3>
+              <p className="text-xs text-slate-600 font-medium">{curr.vehicle}</p>
             </div>
 
-            <p className="text-xs text-slate-600 font-medium">
-              {curr.vehicle}
-            </p>
-
-            {/* Metric Grid */}
-            <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-              <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+            {/* Quick Metrics Grid */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                 <span className="text-[9.5px] font-bold text-slate-400 uppercase block">Distance</span>
-                <span className="text-xs font-black text-slate-800 font-mono">{curr.totalDistance}</span>
+                <span className="text-xs font-black text-slate-900 font-mono">{curr.totalDistance}</span>
               </div>
-              <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                 <span className="text-[9.5px] font-bold text-slate-400 uppercase block">Avg Speed</span>
-                <span className="text-xs font-black text-slate-800 font-mono">{curr.avgSpeed}</span>
+                <span className="text-xs font-black text-blue-600 font-mono">{curr.avgSpeed}</span>
               </div>
-              <div className="bg-rose-50 p-2 rounded-xl border border-rose-100">
-                <span className="text-[9.5px] font-bold text-rose-600 uppercase block">Max Speed</span>
-                <span className="text-xs font-black text-rose-700 font-mono">{curr.maxSpeed}</span>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                <span className="text-[9.5px] font-bold text-slate-400 uppercase block">Confidence</span>
+                <span className="text-xs font-black text-emerald-600 font-mono">{curr.confidence}</span>
               </div>
             </div>
-          </div>
 
-          {/* Sequential Checkpoints Timeline */}
-          <div className="flex-1 bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <span className="text-xs font-bold text-slate-800">Sequential Camera Checkpoints</span>
-              <span className="text-[10px] font-mono text-slate-400">{curr.checkpoints.length} STATIONS</span>
-            </div>
+            {/* Checkpoints Timeline */}
+            <div>
+              <h4 className="text-xs font-bold text-slate-800 mb-2.5 flex items-center justify-between">
+                <span>Traversed Junctions ({curr.checkpoints.length})</span>
+                <span className="text-[10px] text-slate-400 font-mono">Real CCTV Logs</span>
+              </h4>
 
-            <div className="space-y-2.5 my-3 overflow-y-auto max-h-[220px] pr-1">
-              {curr.checkpoints.map((cp: any, idx: number) => (
-                <div
-                  key={cp.id}
-                  className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-blue-50/50 transition flex items-center justify-between text-xs"
-                >
-                  <div className="flex items-center space-x-2.5">
-                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
-                      {idx + 1}
-                    </span>
-                    <div>
-                      <div className="flex items-center space-x-1.5">
-                        <span className="font-mono font-bold text-slate-800">{cp.cam}</span>
-                        <span className="text-[10px] font-medium text-slate-400">• {cp.time}</span>
+              <div className="space-y-2 max-h-[190px] overflow-y-auto pr-1">
+                {curr.checkpoints.map((cp: any, idx: number) => (
+                  <div
+                    key={cp.id}
+                    className="p-2.5 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs transition"
+                  >
+                    <div className="flex items-center space-x-2.5">
+                      <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+                        {idx + 1}
                       </div>
-                      <p className="text-[11px] text-slate-600 truncate max-w-[180px]">{cp.name}</p>
+                      <div>
+                        <div className="font-bold text-slate-800 leading-tight">{cp.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          {cp.time} • Speed: {cp.speed}
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      className={`text-[9.5px] font-mono font-bold px-2 py-0.5 rounded ${
+                        cp.status === 'GHOST_CLONE'
+                          ? 'bg-purple-100 text-purple-700'
+                          : cp.status === 'OVERSPEED'
+                          ? 'bg-rose-100 text-rose-700'
+                          : 'bg-emerald-100 text-emerald-700'
+                      }`}
+                    >
+                      {cp.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Projected Intercept Section */}
+            {curr.projected && (
+              <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
+                <div className="flex items-center space-x-1.5 text-amber-800 font-bold text-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <span>AI Projected Interception Point</span>
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs">{curr.projected.name}</div>
+                    <div className="text-[10px] font-mono text-amber-700 mt-0.5">
+                      Estimated Arrival: {curr.projected.eta}
                     </div>
                   </div>
-                  <span className="font-mono text-[11px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
-                    {cp.speed}
+                  <span className="font-mono text-xs font-black text-amber-600 bg-white px-2 py-1 rounded-lg border border-amber-200 shadow-xs">
+                    {curr.projected.prob}
                   </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Projected Next Target Card */}
-            {curr.projected && (
-              <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1.5 text-amber-800 font-bold text-xs">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Next Intercept Projection</span>
-                  </div>
-                  <span className="text-[10.5px] font-bold text-amber-700 font-mono bg-white px-1.5 py-0.2 rounded border border-amber-200">
-                    Prob: {curr.projected.prob}
-                  </span>
-                </div>
-                <div className="text-xs font-bold text-slate-800 mt-1">
-                  {curr.projected.cam} • {curr.projected.name}
-                </div>
-                <div className="text-[11px] text-amber-800 font-mono mt-0.5">
-                  Arrival ETA: {curr.projected.eta}
                 </div>
               </div>
             )}
           </div>
+
+          <button
+            onClick={onOpenLiveFeed}
+            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-sm transition active:scale-95 flex items-center justify-center space-x-2 cursor-pointer mt-3"
+          >
+            <Radio className="w-3.5 h-3.5 animate-pulse" />
+            <span>Launch Consecutive Camera Tracking Feed</span>
+          </button>
         </div>
       </div>
     </div>
