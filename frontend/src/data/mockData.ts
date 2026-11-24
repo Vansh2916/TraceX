@@ -1,0 +1,148 @@
+import { Camera, Alert } from '../types';
+
+export const MOCK_CAMERAS: Camera[] = [
+  { id: 'CAM_01', name: 'Connaught Place', landmark: 'Inner Circle', lat: 28.6328, lon: 77.2197, zone: 'Central Delhi', speed_limit: 50 },
+  { id: 'CAM_02', name: 'India Gate C-Hexagon', landmark: 'Kartavya Path', lat: 28.6129, lon: 77.2295, zone: 'Central Delhi', speed_limit: 50 },
+  { id: 'CAM_03', name: 'ITO Junction', landmark: 'Vikas Marg', lat: 28.6289, lon: 77.2410, zone: 'East Central', speed_limit: 50 },
+  { id: 'CAM_04', name: 'Kashmere Gate ISBT', landmark: 'Ring Road North', lat: 28.6665, lon: 77.2332, zone: 'North Delhi', speed_limit: 50 },
+  { id: 'CAM_05', name: 'AIIMS Flyover', landmark: 'Ring Road South', lat: 28.5672, lon: 77.2100, zone: 'South Delhi', speed_limit: 50 },
+  { id: 'CAM_06', name: 'Dhaula Kuan Interchange', landmark: 'NH-48 Corridor', lat: 28.5921, lon: 77.1616, zone: 'South West', speed_limit: 70 },
+  { id: 'CAM_07', name: 'IGI Airport T3 Terminal', landmark: 'Airport Express', lat: 28.5562, lon: 77.1000, zone: 'South West', speed_limit: 60 },
+  { id: 'CAM_08', name: 'Ashram Chowk', landmark: 'Mathura Road', lat: 28.5707, lon: 77.2588, zone: 'South East', speed_limit: 50 },
+  { id: 'CAM_09', name: 'Moti Bagh Junction', landmark: 'Shanti Path', lat: 28.5833, lon: 77.1744, zone: 'South Delhi', speed_limit: 50 },
+  { id: 'CAM_10', name: 'Lajpat Nagar Flyover', landmark: 'Ring Road', lat: 28.5700, lon: 77.2400, zone: 'South Delhi', speed_limit: 50 },
+  { id: 'CAM_11', name: 'Karol Bagh (Pusa Road)', landmark: 'Pusa Road Radial', lat: 28.6469, lon: 77.1895, zone: 'West Central', speed_limit: 50 },
+  { id: 'CAM_12', name: 'Sarai Kale Khan RRTS', landmark: 'Ring Road East', lat: 28.5885, lon: 77.2550, zone: 'East Delhi', speed_limit: 50 }
+];
+
+export const MOCK_ALERTS: Alert[] = [
+  {
+    id: 1,
+    alert_type: 'GHOST_ALERT',
+    plate: 'DL8CAF2381',
+    camera_id: 'CAM_03',
+    camera_name: 'ITO Junction',
+    timestamp_sec: 1742150000,
+    iso_time: '2026-11-21T17:41:52Z',
+    severity: 'CRITICAL',
+    details: 'Ghost Plate Detected - Concurrent sighting logged at CAM_03 and CAM_01 within 15s',
+    status: 'ACTIVE'
+  },
+  {
+    id: 2,
+    alert_type: 'SPEED_VIOLATION',
+    plate: 'AP 10 AR 0658',
+    camera_id: 'CAM_02',
+    camera_name: 'India Gate C-Hexagon',
+    timestamp_sec: 1742149000,
+    iso_time: '2026-11-21T17:40:10Z',
+    severity: 'HIGH',
+    details: 'Calculated speed 86 km/h along Barakhamba corridor (Speed limit: 50 km/h)',
+    status: 'ACTIVE'
+  },
+  {
+    id: 3,
+    alert_type: 'WATCHLIST_HIT',
+    plate: 'HR 26 DQ 8888',
+    camera_id: 'CAM_06',
+    camera_name: 'Dhaula Kuan Interchange',
+    timestamp_sec: 1742148000,
+    iso_time: '2026-11-21T17:35:44Z',
+    severity: 'CRITICAL',
+    details: 'Flagged suspect vehicle in armed carjacking investigation',
+    status: 'ACTIVE'
+  }
+];
+
+export const MOCK_LIVE_VEHICLES = [
+  {
+    id: 1,
+    plate: 'DL8CAF2381',
+    car_model: 'Toyota Corolla',
+    vehicle_type: 'Sedan',
+    color: 'White',
+    speed_kmh: 42.5,
+    speed_limit: 50.0,
+    is_overspeed: 0,
+    station_id: 'CAM_07',
+    station_name: 'Rajpath Rd',
+    corridor: 'Connaught Place - India Gate Corridor',
+    timestamp_sec: 174215,
+    iso_time: '2026-11-21T17:42:15Z',
+    confidence: 0.987,
+    detection_engine: 'YOLOv8x-ANPR + OCR',
+    flags: 'FLAGGED_SUSPECT'
+  },
+  {
+    id: 2,
+    plate: 'HR26DK9723',
+    car_model: 'Hyundai Creta',
+    vehicle_type: 'SUV',
+    color: 'Silver',
+    speed_kmh: 54.0,
+    speed_limit: 50.0,
+    is_overspeed: 1,
+    station_id: 'CAM_01',
+    station_name: 'Connaught Place Inner Circle',
+    corridor: 'CP Radial Corridor',
+    timestamp_sec: 174000,
+    iso_time: '2026-11-21T17:40:00Z',
+    confidence: 0.962,
+    detection_engine: 'YOLOv8x-ANPR + OCR',
+    flags: 'TRACKED'
+  },
+  {
+    id: 3,
+    plate: 'UP16BT4097',
+    car_model: 'Maruti Swift',
+    vehicle_type: 'Hatchback',
+    color: 'Red',
+    speed_kmh: 48.2,
+    speed_limit: 50.0,
+    is_overspeed: 0,
+    station_id: 'CAM_03',
+    station_name: 'ITO Junction',
+    corridor: 'Vikas Marg Corridor',
+    timestamp_sec: 173510,
+    iso_time: '2026-11-21T17:35:10Z',
+    confidence: 0.954,
+    detection_engine: 'YOLOv8x-ANPR + OCR',
+    flags: 'TRACKED'
+  },
+  {
+    id: 4,
+    plate: 'DL3CC0456',
+    car_model: 'Honda City',
+    vehicle_type: 'Sedan',
+    color: 'Grey',
+    speed_kmh: 51.5,
+    speed_limit: 50.0,
+    is_overspeed: 0,
+    station_id: 'CAM_02',
+    station_name: 'India Gate C-Hexagon',
+    corridor: 'Kartavya Path Corridor',
+    timestamp_sec: 173120,
+    iso_time: '2026-11-21T17:31:20Z',
+    confidence: 0.971,
+    detection_engine: 'YOLOv8x-ANPR + OCR',
+    flags: 'TRACKED'
+  },
+  {
+    id: 5,
+    plate: 'PB10HS3187',
+    car_model: 'Mahindra Scorpio',
+    vehicle_type: 'SUV',
+    color: 'Black',
+    speed_kmh: 62.0,
+    speed_limit: 50.0,
+    is_overspeed: 1,
+    station_id: 'CAM_04',
+    station_name: 'Kashmere Gate ISBT',
+    corridor: 'Ring Road North Corridor',
+    timestamp_sec: 172800,
+    iso_time: '2026-11-21T17:28:00Z',
+    confidence: 0.948,
+    detection_engine: 'YOLOv8x-ANPR + OCR',
+    flags: 'OVERSPEED_WARNING'
+  }
+];
