@@ -16,7 +16,7 @@ interface CommanderSidebarProps {
   activeNav: string;
   onSelectNav: (nav: string) => void;
   onOpenConsecutiveTracker: () => void;
-  feedStatus?: 'live' | 'demo' | 'offline';
+  feedStatus?: 'live' | 'demo' | 'degraded' | 'offline';
   lastSyncedAt?: Date | null;
 }
 
@@ -93,21 +93,26 @@ export const CommanderSidebar: React.FC<CommanderSidebarProps> = ({
       <div className="p-3">
         <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-3 space-y-2 shadow-xs font-sans">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Feed Status</span>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">System State</span>
             {feedStatus === 'live' ? (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mr-1" />
-                Live
+                LIVE
               </span>
             ) : feedStatus === 'demo' ? (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono bg-amber-50 text-amber-700 border border-amber-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1" />
-                Demo
+                DEMO
+              </span>
+            ) : feedStatus === 'degraded' ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono bg-yellow-50 text-yellow-800 border border-yellow-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mr-1" />
+                DEGRADED
               </span>
             ) : (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono bg-rose-50 text-rose-700 border border-rose-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1" />
-                Offline
+                OFFLINE
               </span>
             )}
           </div>

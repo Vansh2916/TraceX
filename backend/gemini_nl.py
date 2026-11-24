@@ -315,12 +315,27 @@ async def execute_nl_to_sql(user_prompt: str) -> Dict[str, Any]:
             else f"No sightings found for {raw_plate}."
         )
 
+        # Grounding fields for Requirement 6:
+        sighting_ids = [r["id"] for r in results if "id" in r]
+        camera_ids = list(set([r["camera_id"] for r in results if "camera_id" in r]))
+        timestamps = [r.get("iso_time") or str(r.get("timestamp_sec")) for r in results if r.get("iso_time") or r.get("timestamp_sec")]
+        time_range = {
+            "earliest": min(timestamps) if timestamps else None,
+            "latest": max(timestamps) if timestamps else None
+        }
+
         return {
             "success": error is None,
             "found": found,
             "query_type": "vehicle_lookup",
             "requested_plate": raw_plate,
+            "matched_plate": results[0]["plate"] if found else None,
             "normalized_plate": norm_plate,
+            "search_time_range": time_range,
+            "records_matched": len(results),
+            "sighting_ids_used": sighting_ids,
+            "camera_ids_used": camera_ids,
+            "source_timestamps": timestamps,
             "user_query": user_prompt,
             "generated_sql": generated_sql,
             "mode": mode,

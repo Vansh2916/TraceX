@@ -709,28 +709,82 @@ def verify_alibi(payload: AlibiRequest):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-        SELECT camera_id, timestamp_sec, speed_kmh
+        SELECT id, plate, camera_id, timestamp_sec, iso_time, speed_kmh
         FROM sightings
-        WHERE plate = ?
+        WHERE UPPER(REPLACE(REPLACE(plate, ' ', ''), '-', '')) = UPPER(REPLACE(REPLACE(?, ' ', ''), '-', ''))
         ORDER BY timestamp_sec DESC
     """, (plate_norm,))
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
 
     claimed_time = payload.claimed_time_sec if payload.claimed_time_sec else time.time()
-    result = city_engine.check_alibi(
+    try:
+        from backend.alibi_service import evaluate_alibi_evidence
+    except ImportError:
+        from alibi_service import evaluate_alibi_evidence
+
+    result = evaluate_alibi_evidence(
         plate=plate_norm,
         claimed_lat=payload.claimed_lat,
         claimed_lon=payload.claimed_lon,
         claimed_time_sec=claimed_time,
-        plate_sightings=rows
+        sighting_records=rows
     )
+    # Also attach backward compatibility fields for existing frontend callers
+    result["status"] = "CONFIRMED" if result["outcome"] == "CONSISTENT" else ("BROKEN" if result["outcome"] == "INCONSISTENT" else "INCONCLUSIVE")
     return result
 
 @app.post("/api/nl-query")
 async def nl_to_sql_endpoint(payload: NLQueryRequest):
     result = await execute_nl_to_sql(payload.query)
     return result
+
+# --- Settings & Governance Endpoints ---
+from backend.settings_manager import settings_manager
+from backend.security_governance import record_audit_log, AuditLogEntry, check_permission, enforce_data_retention
+
+@app.get("/api/settings")
+def get_settings():
+    return settings_manager.get_status()
+
+@app.post("/api/settings")
+def update_settings(updates: Dict[str, Any], role: str = "ADMIN"):
+    if not check_permission(role, "CHANGE_ADMIN_SETTINGS"):
+        record_audit_log(AuditLogEntry(
+            user_identity="system_user",
+            role=role,
+            action="UPDATE_SETTINGS",
+            resource="system_settings",
+            status="FORBIDDEN",
+            details="Insufficient permissions"
+        ))
+        raise HTTPException(status_code=403, detail="Role not authorized to alter system configuration.")
+
+    status = settings_manager.save_and_apply(updates)
+    record_audit_log(AuditLogEntry(
+        user_identity="system_user",
+        role=role,
+        action="UPDATE_SETTINGS",
+        resource="system_settings",
+        status="SUCCESS",
+        details=json.dumps(updates)
+    ))
+    return status
+
+@app.post("/api/governance/retention/purge")
+def trigger_retention_purge(days: int = 90, role: str = "ADMIN"):
+    if not check_permission(role, "PURGE_DATA"):
+        raise HTTPException(status_code=403, detail="Purge action requires Administrator authorization.")
+    deleted = enforce_data_retention(retention_days=days)
+    record_audit_log(AuditLogEntry(
+        user_identity="system_user",
+        role=role,
+        action="PURGE_RETENTION",
+        resource="sightings",
+        status="SUCCESS",
+        details=f"Purged {deleted} records older than {days} days"
+    ))
+    return {"success": True, "records_purged": deleted, "retention_days": days}
 
 # --- One-Click Demo Triggers ---
 

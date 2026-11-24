@@ -7,119 +7,15 @@ from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 import networkx as nx
 
+try:
+    from backend.camera_registry import camera_registry
+except ImportError:
+    from camera_registry import camera_registry
+
 logger = logging.getLogger("crusaders.engine")
 
-# 12 Real Delhi Traffic Junctions (CAM_01 to CAM_12)
-DELHI_CAMERAS: Dict[str, Dict[str, Any]] = {
-    "CAM_01": {
-        "id": "CAM_01",
-        "name": "Connaught Place",
-        "landmark": "Outer Circle (Barakhamba Rd Entry)",
-        "lat": 28.6328,
-        "lon": 77.2197,
-        "zone": "Central Delhi",
-        "speed_limit": 50
-    },
-    "CAM_02": {
-        "id": "CAM_02",
-        "name": "India Gate C-Hexagon",
-        "landmark": "Kartavya Path / Rajpath Crossing",
-        "lat": 28.6129,
-        "lon": 77.2295,
-        "zone": "New Delhi VIP Zone",
-        "speed_limit": 60
-    },
-    "CAM_03": {
-        "id": "CAM_03",
-        "name": "ITO Junction",
-        "landmark": "Vikas Marg & Bahadur Shah Zafar Marg",
-        "lat": 28.6289,
-        "lon": 77.2410,
-        "zone": "Central / Trans-Yamuna Corridor",
-        "speed_limit": 50
-    },
-    "CAM_04": {
-        "id": "CAM_04",
-        "name": "Kashmere Gate ISBT",
-        "landmark": "Ring Road / Old Delhi Gate",
-        "lat": 28.6665,
-        "lon": 77.2332,
-        "zone": "North Delhi Inter-State Hub",
-        "speed_limit": 60
-    },
-    "CAM_05": {
-        "id": "CAM_05",
-        "name": "AIIMS Flyover",
-        "landmark": "Ring Road & Sri Aurobindo Marg",
-        "lat": 28.5672,
-        "lon": 77.2100,
-        "zone": "South Delhi Medical Corridor",
-        "speed_limit": 60
-    },
-    "CAM_06": {
-        "id": "CAM_06",
-        "name": "Dhaula Kuan Interchange",
-        "landmark": "National Highway 48 & Ring Road Flyover",
-        "lat": 28.5921,
-        "lon": 77.1616,
-        "zone": "South-West Transit Hub",
-        "speed_limit": 70
-    },
-    "CAM_07": {
-        "id": "CAM_07",
-        "name": "IGI Airport T3 Terminal",
-        "landmark": "Indira Gandhi Int'l Airport Access Expressway",
-        "lat": 28.5562,
-        "lon": 77.1000,
-        "zone": "Airport Security Perimeter",
-        "speed_limit": 70
-    },
-    "CAM_08": {
-        "id": "CAM_08",
-        "name": "Ashram Chowk",
-        "landmark": "Mathura Road & Ring Road Junction",
-        "lat": 28.5707,
-        "lon": 77.2588,
-        "zone": "South-East Arterial Hub",
-        "speed_limit": 60
-    },
-    "CAM_09": {
-        "id": "CAM_09",
-        "name": "Moti Bagh Junction",
-        "landmark": "Ring Road & Shanti Path Intersection",
-        "lat": 28.5833,
-        "lon": 77.1744,
-        "zone": "Diplomatic Enclave / South Delhi",
-        "speed_limit": 60
-    },
-    "CAM_10": {
-        "id": "CAM_10",
-        "name": "Lajpat Nagar Flyover",
-        "landmark": "Ring Road Central Market Axis",
-        "lat": 28.5700,
-        "lon": 77.2400,
-        "zone": "South Delhi Ring Corridor",
-        "speed_limit": 60
-    },
-    "CAM_11": {
-        "id": "CAM_11",
-        "name": "Karol Bagh (Pusa Road)",
-        "landmark": "Pusa Road Metro Pillar 110",
-        "lat": 28.6469,
-        "lon": 77.1895,
-        "zone": "West-Central Commercial Corridor",
-        "speed_limit": 50
-    },
-    "CAM_12": {
-        "id": "CAM_12",
-        "name": "Sarai Kale Khan RRTS",
-        "landmark": "Ring Road & Barapullah Elevated Junction",
-        "lat": 28.5885,
-        "lon": 77.2550,
-        "zone": "East-South High-Speed Transit Corridor",
-        "speed_limit": 70
-    }
-}
+# Canonical single source of truth for cameras:
+DELHI_CAMERAS: Dict[str, Dict[str, Any]] = camera_registry.get_dict_map()
 
 # Simulated PCR Police Patrol Units stationed across Delhi
 PCR_UNITS = [

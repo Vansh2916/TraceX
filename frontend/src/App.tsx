@@ -50,6 +50,21 @@ export const App: React.FC = () => {
   const [isBackendHealthy, setIsBackendHealthy] = useState<boolean | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
+  // Global keyboard shortcuts (Requirement 9: Escape closes active modals)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsConsecutiveTrackerOpen(false);
+        setIsLiveVehiclesDBOpen(false);
+        setIsDashcamOpen(false);
+        setIsCitizenPWAOpen(false);
+        setIsNotificationsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Tactical Audio Synth (Web Audio API)
   const playAlertSound = (severity: 'CRITICAL' | 'WARNING' | 'INFO' = 'CRITICAL') => {
     if (!isAudioEnabled) return;
@@ -184,6 +199,19 @@ export const App: React.FC = () => {
     setActiveNav('trajectories');
   };
 
+  // Operational State calculation (Requirement 2: LIVE, DEMO, DEGRADED, OFFLINE)
+  const isStale = lastSyncedAt ? (Date.now() - lastSyncedAt.getTime()) > 120000 : false;
+  let operationalState: 'live' | 'demo' | 'degraded' | 'offline' = 'demo';
+  if (isBackendHealthy === false) {
+    operationalState = 'demo';
+  } else if (!isBackendHealthy && !wsConnected && !lastSyncedAt) {
+    operationalState = 'offline';
+  } else if (wsConnected && !isStale) {
+    operationalState = 'live';
+  } else if (isBackendHealthy || wsConnected || isStale) {
+    operationalState = 'degraded';
+  }
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#f4f7fb] text-slate-800 font-sans">
       {/* 1. Left Sidebar */}
@@ -194,7 +222,7 @@ export const App: React.FC = () => {
           setIsLiveVehiclesDBOpen(nav === 'vehicle_search');
         }}
         onOpenConsecutiveTracker={() => setIsConsecutiveTrackerOpen(true)}
-        feedStatus={wsConnected ? 'live' : (isBackendHealthy === false ? 'demo' : 'offline')}
+        feedStatus={operationalState}
         lastSyncedAt={lastSyncedAt}
       />
 
