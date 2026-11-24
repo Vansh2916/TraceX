@@ -2,13 +2,10 @@ import React, { useState, useEffect } from 'react';
 import {
   Search,
   Bell,
-  Activity,
-  Sparkles,
   Volume2,
   VolumeX,
   Smartphone,
   Shield,
-  Zap,
 } from 'lucide-react';
 
 interface CommanderHeaderProps {
@@ -16,8 +13,6 @@ interface CommanderHeaderProps {
   onOpenNotifications: () => void;
   alertCount: number;
   isLive: boolean;
-  isJudgeBarOpen?: boolean;
-  onToggleJudgeBar?: () => void;
   isAudioEnabled?: boolean;
   onToggleAudio?: () => void;
   onOpenCitizenPWA?: () => void;
@@ -28,8 +23,6 @@ export const CommanderHeader: React.FC<CommanderHeaderProps> = ({
   onOpenNotifications,
   alertCount,
   isLive,
-  isJudgeBarOpen = true,
-  onToggleJudgeBar,
   isAudioEnabled = true,
   onToggleAudio,
   onOpenCitizenPWA,
@@ -57,27 +50,27 @@ export const CommanderHeader: React.FC<CommanderHeaderProps> = ({
   };
 
   return (
-    <header className="h-[62px] px-6 bg-white/80 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between select-none z-20">
-      {/* Left Title & Status */}
-      <div className="flex items-center space-x-3">
+    <header className="h-[64px] px-6 bg-white/90 backdrop-blur-md border-b border-slate-200/90 flex items-center justify-between select-none z-20 gap-4">
+      {/* Left Title & Status - Fixed layout with no awkward text wrapping */}
+      <div className="flex items-center space-x-3 shrink-0">
         <div>
-          <div className="flex items-center space-x-2">
-            <h2 className="text-[17px] font-black text-slate-900 tracking-tight leading-none">
+          <div className="flex items-center space-x-2.5">
+            <h2 className="text-[17px] font-black text-slate-900 tracking-tight leading-none whitespace-nowrap">
               Command Center
             </h2>
-            <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-mono">
-              DELHI POLICE INTELLIGENCE
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 font-mono uppercase tracking-wider whitespace-nowrap shadow-2xs">
+              Delhi Police Intelligence
             </span>
           </div>
-          <p className="text-[11px] font-medium text-slate-400 mt-0.5">
+          <p className="text-[11px] font-medium text-slate-400 mt-1 whitespace-nowrap">
             Real-time trajectory tracking & optical ANPR surveillance
           </p>
         </div>
       </div>
 
-      {/* Center Search Input */}
-      <form onSubmit={handleSubmit} className="relative flex items-center">
-        <div className="relative flex items-center w-[360px] bg-slate-50 border border-slate-200 rounded-full px-3.5 py-1.5 shadow-xs hover:border-slate-300 transition-colors focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 focus-within:bg-white">
+      {/* Center Search Input - Responsive and clean */}
+      <form onSubmit={handleSubmit} className="relative flex items-center mx-2 flex-1 max-w-[420px]">
+        <div className="relative flex items-center w-full bg-slate-50 border border-slate-200 rounded-full px-3.5 py-1.5 shadow-2xs hover:border-slate-300 transition-colors focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 focus-within:bg-white">
           <Search className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
           <input
             id="commander-plate-search"
@@ -95,28 +88,12 @@ export const CommanderHeader: React.FC<CommanderHeaderProps> = ({
       </form>
 
       {/* Right Controls & Quick Actions */}
-      <div className="flex items-center space-x-2.5">
-        {/* Toggle Judge Demo Bar */}
-        {onToggleJudgeBar && (
-          <button
-            onClick={onToggleJudgeBar}
-            className={`px-3 py-1.5 rounded-full text-xs font-mono font-bold flex items-center space-x-1.5 transition-all shadow-xs cursor-pointer active:scale-95 ${
-              isJudgeBarOpen
-                ? 'bg-amber-500 text-slate-950 border border-amber-400 font-black'
-                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300'
-            }`}
-            title="Toggle Hackathon Judge Quick-Demo Bar"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Judge Demo Bar</span>
-          </button>
-        )}
-
+      <div className="flex items-center space-x-2.5 shrink-0">
         {/* Citizen PWA Button */}
         {onOpenCitizenPWA && (
           <button
             onClick={onOpenCitizenPWA}
-            className="px-3 py-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center space-x-1.5 transition active:scale-95 cursor-pointer shadow-xs"
+            className="px-3.5 py-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center space-x-1.5 transition active:scale-95 cursor-pointer shadow-xs whitespace-nowrap"
             title="Citizen Incident Portal PWA"
           >
             <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
@@ -140,7 +117,7 @@ export const CommanderHeader: React.FC<CommanderHeaderProps> = ({
         )}
 
         {/* Live WebSocket Status Indicator */}
-        <div className="flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200/80 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs">
+        <div className="flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200/80 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs whitespace-nowrap">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-[11px] font-mono tracking-wider font-bold">
             {isLive ? 'NETWORK LIVE' : 'CONNECTING...'}
@@ -163,7 +140,7 @@ export const CommanderHeader: React.FC<CommanderHeaderProps> = ({
 
         {/* Commander Profile */}
         <div
-          className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-700 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shadow-sm cursor-pointer hover:opacity-90 transition"
+          className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-700 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shadow-sm cursor-pointer hover:opacity-90 transition shrink-0"
           title="Superintendent of Police (Command Terminal)"
         >
           SP
