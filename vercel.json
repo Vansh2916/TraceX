@@ -1,0 +1,15 @@
+{
+  "buildCommand": "cd frontend && npm install && npm run build && cp -r public/* dist/",
+  "outputDirectory": "frontend/dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/api/:match*",
+      "destination": "https://crusaders-anpr.onrender.com/api/:match*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

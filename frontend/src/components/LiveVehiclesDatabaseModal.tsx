@@ -8,6 +8,7 @@ import {
   Download,
 } from 'lucide-react';
 import { MOCK_LIVE_VEHICLES } from '../data/mockData';
+import { fetchJson } from '../utils/api';
 
 interface LiveVehicleRecord {
   id: number;
@@ -48,8 +49,7 @@ export const LiveVehiclesDatabaseModal: React.FC<LiveVehiclesDatabaseModalProps>
   const fetchLiveVehicles = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/live-vehicles?limit=100');
-      const data = await res.json();
+      const data = await fetchJson('/api/live-vehicles?limit=100');
       if (data.success && data.vehicles && data.vehicles.length > 0) {
         setVehicles(data.vehicles);
       } else {

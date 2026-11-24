@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Sighting, Alert } from './types';
 import { MOCK_CAMERAS, MOCK_ALERTS } from './data/mockData';
+import { fetchJson, getWebSocketUrl } from './utils/api';
 import { CommanderSidebar } from './components/CommanderSidebar';
 import { CommanderHeader } from './components/CommanderHeader';
 import { MetricCardsRow } from './components/MetricCardsRow';
@@ -46,14 +47,11 @@ export const App: React.FC = () => {
   useEffect(() => {
     const fetchBase = async () => {
       try {
-        const [cRes, sRes, aRes] = await Promise.all([
-          fetch('/api/cameras'),
-          fetch('/api/sightings?limit=60'),
-          fetch('/api/alerts?limit=30'),
+        const [cData, sData, aData] = await Promise.all([
+          fetchJson<{ cameras: Camera[] }>('/api/cameras'),
+          fetchJson<{ sightings: Sighting[] }>('/api/sightings?limit=60'),
+          fetchJson<{ alerts: Alert[] }>('/api/alerts?limit=30'),
         ]);
-        const cData = await cRes.json();
-        const sData = await sRes.json();
-        const aData = await aRes.json();
 
         setCameras(cData.cameras && cData.cameras.length > 0 ? cData.cameras : MOCK_CAMERAS);
         setSightings(sData.sightings || []);
@@ -67,45 +65,88 @@ export const App: React.FC = () => {
     fetchBase();
   }, []);
 
-  // Connect WebSocket
+  // Connect & verify WebSocket separately
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = getWebSocketUrl();
+    let isCleanedUp = false;
+    let reconnectTimer: NodeJS.Timeout | null = null;
+    let pingInterval: NodeJS.Timeout | null = null;
 
     const connectWs = () => {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+      if (isCleanedUp) return;
 
-      ws.onopen = () => setWsConnected(true);
+      try {
+        console.log(`[Crusaders WS] Connecting to WebSocket endpoint: ${wsUrl}`);
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
 
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'INIT_STATE') {
-            if (msg.cameras) setCameras(msg.cameras);
-            if (msg.recent_sightings) setSightings(msg.recent_sightings);
-            if (msg.recent_alerts) setAlerts(msg.recent_alerts);
-          } else if (msg.type === 'NEW_SIGHTING') {
-            setSightings((prev) => [msg.data, ...prev.slice(0, 100)]);
-            if (msg.alerts && msg.alerts.length > 0) {
-              setAlerts((prev) => [...msg.alerts, ...prev]);
+        ws.onopen = () => {
+          console.log('[Crusaders WS] Connection opened. Verifying endpoint with heartbeat PING...');
+          // Verify WebSocket endpoint separately with heartbeat PING
+          ws.send(JSON.stringify({ action: 'PING' }));
+
+          if (pingInterval) clearInterval(pingInterval);
+          pingInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ action: 'PING' }));
             }
+          }, 25000);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'PONG') {
+              console.log('[Crusaders WS] Verified WebSocket endpoint (received PONG from backend)');
+              setWsConnected(true);
+              return;
+            }
+
+            // Valid telemetry payload also confirms verified connection
+            setWsConnected(true);
+
+            if (msg.type === 'INIT_STATE') {
+              if (msg.cameras) setCameras(msg.cameras);
+              if (msg.recent_sightings) setSightings(msg.recent_sightings);
+              if (msg.recent_alerts) setAlerts(msg.recent_alerts);
+            } else if (msg.type === 'NEW_SIGHTING') {
+              setSightings((prev) => [msg.data, ...prev.slice(0, 100)]);
+              if (msg.alerts && msg.alerts.length > 0) {
+                setAlerts((prev) => [...msg.alerts, ...prev]);
+              }
+            }
+          } catch (e) {
+            console.error('[Crusaders WS] Parse error', e);
           }
-        } catch (e) {
-          console.error('WS parse error', e);
-        }
-      };
+        };
 
-      ws.onclose = () => {
+        ws.onclose = (event) => {
+          setWsConnected(false);
+          if (pingInterval) clearInterval(pingInterval);
+          console.warn(`[Crusaders WS] Disconnected (code: ${event.code}). Retrying in 3s...`);
+          if (!isCleanedUp) {
+            reconnectTimer = setTimeout(connectWs, 3000);
+          }
+        };
+
+        ws.onerror = (err) => {
+          console.warn('[Crusaders WS] Error on WebSocket endpoint:', err);
+          setWsConnected(false);
+        };
+      } catch (err) {
+        console.error('[Crusaders WS] Failed to initialize WebSocket:', err);
         setWsConnected(false);
-        setTimeout(connectWs, 3000);
-      };
-
-      ws.onerror = () => ws.close();
+        if (!isCleanedUp) {
+          reconnectTimer = setTimeout(connectWs, 3000);
+        }
+      }
     };
 
     connectWs();
     return () => {
+      isCleanedUp = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (pingInterval) clearInterval(pingInterval);
       if (wsRef.current) wsRef.current.close();
     };
   }, []);
