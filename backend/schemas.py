@@ -27,3 +27,27 @@ class SightingResponse(SightingCreate):
     id: int
     camera_name: Optional[str] = None
     created_at: Optional[str] = None
+
+class WatchlistEntry(BaseModel):
+    plate_number: str = Field(..., description="Target license plate")
+    reason: str = Field(..., description="Reason for surveillance / alert flag")
+    severity: str = Field(default="HIGH", description="LOW, MEDIUM, HIGH, CRITICAL")
+    registered_owner: Optional[str] = None
+    vehicle_model: Optional[str] = None
+
+class AlertRecord(BaseModel):
+    id: Optional[int] = None
+    alert_type: str = Field(..., description="e.g. WATCHLIST_MATCH, SPEEDING, GHOST_VEHICLE, CONVOY")
+    plate_number: str
+    camera_id: str
+    timestamp_sec: float
+    description: str
+    severity: str = "HIGH"
+
+class AlibiVerificationRequest(BaseModel):
+    plate_number: str
+    claimed_location: str
+    claimed_lat: float
+    claimed_lon: float
+    claimed_time_sec: float
+    time_window_minutes: int = 30
