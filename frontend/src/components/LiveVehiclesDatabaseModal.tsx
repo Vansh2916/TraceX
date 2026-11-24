@@ -6,9 +6,12 @@ import {
   X,
   AlertTriangle,
   Download,
+  Server,
+  Radio,
 } from 'lucide-react';
 import { MOCK_LIVE_VEHICLES } from '../data/mockData';
 import { fetchJson } from '../utils/api';
+import { ConnectionStatus, DataOrigin } from '../types';
 
 interface LiveVehicleRecord {
   id: number;
@@ -45,19 +48,34 @@ export const LiveVehiclesDatabaseModal: React.FC<LiveVehiclesDatabaseModalProps>
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStation, setFilterStation] = useState<string>('ALL');
   const [filterOverspeed, setFilterOverspeed] = useState<boolean>(false);
+  const [dataOrigin, setDataOrigin] = useState<DataOrigin>('mock');
+  const [fetchStatus, setFetchStatus] = useState<ConnectionStatus>('connecting');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
   const fetchLiveVehicles = async () => {
     try {
       setLoading(true);
+      setFetchStatus('connecting');
       const data = await fetchJson('/api/live-vehicles?limit=100');
       if (data.success && data.vehicles && data.vehicles.length > 0) {
         setVehicles(data.vehicles);
+        setDataOrigin('live');
+        setFetchStatus('connected');
+        setErrorMessage(null);
+        setLastSyncTime(new Date());
       } else {
         setVehicles(MOCK_LIVE_VEHICLES as any);
+        setDataOrigin('mock');
+        setFetchStatus('offline');
+        setErrorMessage('Backend returned empty or invalid records. Showing 5 demo records.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Failed to fetch live streaming vehicles, using mock data:', err);
       setVehicles(MOCK_LIVE_VEHICLES as any);
+      setDataOrigin('mock');
+      setFetchStatus('offline');
+      setErrorMessage(err?.message || 'Backend API unreachable: showing 5 demo records.');
     } finally {
       setLoading(false);
     }
@@ -133,20 +151,53 @@ export const LiveVehiclesDatabaseModal: React.FC<LiveVehiclesDatabaseModalProps>
         {/* Top Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
-              <Database className="w-5 h-5 text-blue-600" />
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-xs ${
+              dataOrigin === 'live' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
+            }`}>
+              <Database className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center flex-wrap gap-2">
                 <h3 className="text-[16px] font-bold text-slate-800 tracking-tight">
-                  Passing Live Streaming Vehicles Database (SQLite)
+                  {dataOrigin === 'live'
+                    ? 'Passing Live Streaming Vehicles Database (SQLite)'
+                    : 'Passing Vehicles Database — Demo Simulation Dataset'}
                 </h3>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                  {vehicles.length} LOGGED
+                {/* Data Origin Badge */}
+                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border flex items-center space-x-1 ${
+                  dataOrigin === 'live'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                    : 'bg-amber-50 text-amber-800 border-amber-300'
+                }`}>
+                  {dataOrigin === 'live' ? (
+                    <span>● DATA ORIGIN: LIVE SQLITE ({vehicles.length} LOGGED)</span>
+                  ) : (
+                    <span>▲ DATA ORIGIN: 5 DEMO RECORDS (FALLBACK)</span>
+                  )}
+                </span>
+                {/* Connection Status Badge */}
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border flex items-center space-x-1 ${
+                  fetchStatus === 'connected'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : fetchStatus === 'connecting'
+                    ? 'bg-sky-50 text-sky-700 border-sky-200'
+                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                }`}>
+                  <Server className="w-3 h-3" />
+                  <span>
+                    API:{' '}
+                    {fetchStatus === 'connected'
+                      ? 'CONNECTED (200 OK)'
+                      : fetchStatus === 'connecting'
+                      ? 'CONNECTING...'
+                      : 'OFFLINE / UNREACHABLE'}
+                  </span>
                 </span>
               </div>
               <p className="text-[11.5px] text-slate-500 mt-0.5">
-                Real-time ingestion of all vehicular license plates, velocity telemetry, and camera station checkpoints.
+                {dataOrigin === 'live'
+                  ? 'Real-time ingestion of all vehicular license plates, velocity telemetry, and camera station checkpoints.'
+                  : 'Notice: Backend API is currently offline. Displaying 5 demo vehicle records for operational testing.'}
               </p>
             </div>
           </div>
@@ -173,6 +224,30 @@ export const LiveVehiclesDatabaseModal: React.FC<LiveVehiclesDatabaseModalProps>
             </button>
           </div>
         </div>
+
+        {/* Warning Banner When in Demo Mode */}
+        {dataOrigin === 'mock' && (
+          <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 flex items-center justify-between text-amber-900 text-xs shrink-0">
+            <div className="flex items-center space-x-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <div>
+                <span className="font-bold">Live Backend Ingestion Offline: </span>
+                <span>Displaying 5 demo vehicle records for operational testing. Real-time camera telemetry is paused.</span>
+                {errorMessage && (
+                  <span className="block text-[10.5px] text-amber-700/80 font-mono mt-0.5">
+                    Detail: {errorMessage}
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={fetchLiveVehicles}
+              className="px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl font-bold text-xs transition shrink-0"
+            >
+              Retry Connection
+            </button>
+          </div>
+        )}
 
         {/* Filter Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-xs">
@@ -232,9 +307,20 @@ export const LiveVehiclesDatabaseModal: React.FC<LiveVehiclesDatabaseModalProps>
               {filtered.map((v) => (
                 <tr key={v.id} className="hover:bg-blue-50/50 transition">
                   <td className="py-2 px-3 font-mono font-bold text-slate-900">
-                    <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
-                      {v.plate}
-                    </span>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
+                        {v.plate}
+                      </span>
+                      {dataOrigin === 'mock' ? (
+                        <span className="text-[9px] font-mono font-extrabold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                          DEMO
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-mono font-extrabold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          LIVE
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-2 px-3">
                     <span className="font-semibold text-slate-800">{v.car_model}</span>

@@ -1,15 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Camera } from '../../types';
-import { MapPin, Video, Search, ChevronDown, Crosshair, Plus, Minus, Layers, Radio } from 'lucide-react';
+import { Camera, ConnectionStatus, DataOrigin } from '../../types';
+import { MapPin, Video, Search, ChevronDown, Crosshair, Plus, Minus, Layers, Radio, Server, AlertTriangle } from 'lucide-react';
 
 interface LiveMapViewProps {
   cameras: Camera[];
   onOpenFeed?: (camId: string) => void;
+  apiStatus?: ConnectionStatus;
+  wsStatus?: ConnectionStatus;
+  dataOrigin?: DataOrigin;
 }
 
-export const LiveMapView: React.FC<LiveMapViewProps> = ({ cameras, onOpenFeed }) => {
+export const LiveMapView: React.FC<LiveMapViewProps> = ({
+  cameras,
+  onOpenFeed,
+  apiStatus = 'connected',
+  wsStatus = 'connected',
+  dataOrigin = 'live',
+}) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const [selectedCam, setSelectedCam] = useState<string | null>(null);
@@ -101,9 +110,17 @@ export const LiveMapView: React.FC<LiveMapViewProps> = ({ cameras, onOpenFeed })
 
         {/* Top Controls Overlay */}
         <div className="absolute top-4 left-4 z-[400] flex items-center space-x-2">
-          <div className="bg-slate-900/90 backdrop-blur text-white text-xs px-3.5 py-1.5 rounded-full border border-slate-700/60 font-semibold flex items-center space-x-1.5 shadow-md">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Delhi NCR Live Surveillance Grid (12 / 12 Active)</span>
+          <div className="bg-slate-900/90 backdrop-blur text-white text-xs px-3.5 py-1.5 rounded-full border border-slate-700/60 font-semibold flex items-center space-x-2 shadow-md">
+            <span className={`w-2 h-2 rounded-full ${dataOrigin === 'live' && apiStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <span>Delhi NCR Surveillance Grid ({cameras.length} Cameras)</span>
+            <span className="text-slate-500">•</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+              dataOrigin === 'live' && apiStatus === 'connected'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+            }`}>
+              {dataOrigin === 'live' && apiStatus === 'connected' ? 'LIVE BACKEND' : 'DEMO COORDINATES'}
+            </span>
           </div>
         </div>
 

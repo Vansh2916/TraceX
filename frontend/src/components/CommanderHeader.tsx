@@ -1,18 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Bell, Activity } from 'lucide-react';
+import { Search, Bell, Activity, AlertTriangle, Radio, Server, Database } from 'lucide-react';
+import { ConnectionStatus, DataOrigin } from '../types';
 
 interface CommanderHeaderProps {
   onSearchPlate: (plate: string) => void;
   onOpenNotifications: () => void;
   alertCount: number;
-  isLive: boolean;
+  isLive?: boolean;
+  apiStatus?: ConnectionStatus;
+  wsStatus?: ConnectionStatus;
+  dataOrigin?: DataOrigin;
+  onRetryConnection?: () => void;
 }
 
 export const CommanderHeader: React.FC<CommanderHeaderProps> = ({
   onSearchPlate,
   onOpenNotifications,
   alertCount,
-  isLive,
+  isLive = false,
+  apiStatus = 'connecting',
+  wsStatus = 'connecting',
+  dataOrigin = 'mock',
+  onRetryConnection,
 }) => {
   const [searchInput, setSearchInput] = useState('');
 
@@ -68,11 +77,48 @@ export const CommanderHeader: React.FC<CommanderHeaderProps> = ({
       </form>
 
       {/* Right User & Status Badges */}
-      <div className="flex items-center space-x-3.5">
-        {/* Live Indicator */}
-        <div className="flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200/70 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-semibold shadow-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[11px] tracking-wide">Live</span>
+      <div className="flex items-center space-x-3">
+        {/* Connection & Data Origin Badges */}
+        <div className="flex items-center space-x-2">
+          {/* Combined Connection & Data Origin Pill */}
+          <div
+            onClick={onRetryConnection}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-xs cursor-pointer transition-all ${
+              dataOrigin === 'live' && apiStatus === 'connected'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                : 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+            }`}
+            title={`API: ${apiStatus} | WS: ${wsStatus} | Data Origin: ${dataOrigin === 'live' ? 'Live Telemetry' : 'Demo / Mock Data'}. Click to re-sync.`}
+          >
+            {dataOrigin === 'live' && apiStatus === 'connected' ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] tracking-wide font-extrabold">LIVE TELEMETRY</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 animate-bounce" />
+                <span className="text-[11px] tracking-wide font-extrabold text-amber-900">DEMO MODE (API OFFLINE)</span>
+              </>
+            )}
+          </div>
+
+          {/* Quick status dots */}
+          <div className="hidden lg:flex items-center space-x-1.5 px-2 py-1 rounded-lg bg-slate-100 border border-slate-200/80 text-[10px] font-mono text-slate-600">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                apiStatus === 'connected' ? 'bg-emerald-500' : 'bg-rose-500'
+              }`}
+            />
+            <span>API</span>
+            <span className="text-slate-300">|</span>
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                wsStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+              }`}
+            />
+            <span>WS</span>
+          </div>
         </div>
 
         {/* Notifications Bell */}

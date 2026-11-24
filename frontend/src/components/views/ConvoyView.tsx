@@ -1,7 +1,18 @@
 import React, { useState } from 'react';
-import { Users, Car, ShieldAlert, ArrowRight, CheckCircle2, Clock } from 'lucide-react';
+import { Users, Car, ShieldAlert, ArrowRight, CheckCircle2, Clock, Server, AlertTriangle } from 'lucide-react';
+import { ConnectionStatus, DataOrigin } from '../../types';
 
-export const ConvoyView: React.FC = () => {
+interface ConvoyViewProps {
+  apiStatus?: ConnectionStatus;
+  wsStatus?: ConnectionStatus;
+  dataOrigin?: DataOrigin;
+}
+
+export const ConvoyView: React.FC<ConvoyViewProps> = ({
+  apiStatus = 'connected',
+  wsStatus = 'connected',
+  dataOrigin = 'mock',
+}) => {
   const convoys = [
     {
       id: 'CNV_01',
@@ -45,6 +56,26 @@ export const ConvoyView: React.FC = () => {
               Identifies coordinated vehicular formations traversing multiple arterial junctions within tight time windows (Δt ≤ 45s).
             </p>
           </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border flex items-center space-x-1 ${
+            dataOrigin === 'live' && apiStatus === 'connected'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+              : 'bg-amber-50 text-amber-800 border-amber-300'
+          }`}>
+            <span>
+              {dataOrigin === 'live' && apiStatus === 'connected'
+                ? '● DATA ORIGIN: LIVE INGESTION'
+                : '▲ DATA ORIGIN: DEMO CONVOY SET'}
+            </span>
+          </span>
+          <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${
+            apiStatus === 'connected'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border-rose-200'
+          }`}>
+            API: {apiStatus === 'connected' ? 'ONLINE' : 'OFFLINE'}
+          </span>
         </div>
       </div>
 

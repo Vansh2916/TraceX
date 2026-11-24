@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Camera } from '../../types';
+import { Camera, ConnectionStatus, DataOrigin } from '../../types';
 import {
   Route,
   Navigation,
@@ -22,6 +22,9 @@ interface TrajectoriesViewProps {
   selectedPlate?: string;
   onSelectPlate?: (plate: string) => void;
   onOpenLiveFeed?: () => void;
+  apiStatus?: ConnectionStatus;
+  wsStatus?: ConnectionStatus;
+  dataOrigin?: DataOrigin;
 }
 
 export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
@@ -29,6 +32,9 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
   selectedPlate = 'DL8CAF2381',
   onSelectPlate,
   onOpenLiveFeed,
+  apiStatus = 'connected',
+  wsStatus = 'connected',
+  dataOrigin = 'mock',
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -288,9 +294,17 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
 
           {/* Map Overlay Header */}
           <div className="absolute top-3 left-3 z-[400] flex items-center space-x-2">
-            <div className="bg-slate-900/90 backdrop-blur text-white text-xs px-3 py-1.5 rounded-full border border-slate-700/60 font-semibold flex items-center space-x-2">
-              <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-              <span>Live Trajectory: {activePlate}</span>
+            <div className="bg-slate-900/90 backdrop-blur text-white text-xs px-3 py-1.5 rounded-full border border-slate-700/60 font-semibold flex items-center space-x-2 shadow-md">
+              <Radio className={`w-3.5 h-3.5 ${dataOrigin === 'live' && apiStatus === 'connected' ? 'text-cyan-400 animate-pulse' : 'text-amber-400'}`} />
+              <span>Trajectory: {activePlate}</span>
+              <span className="text-slate-500">•</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                dataOrigin === 'live' && apiStatus === 'connected'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+              }`}>
+                {dataOrigin === 'live' && apiStatus === 'connected' ? 'LIVE STREAM' : 'DEMO TRAJECTORY'}
+              </span>
             </div>
           </div>
 

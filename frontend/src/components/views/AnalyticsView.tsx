@@ -1,7 +1,18 @@
 import React from 'react';
-import { BarChart3, TrendingUp, AlertTriangle, ShieldCheck, Car, Video } from 'lucide-react';
+import { BarChart3, TrendingUp, AlertTriangle, ShieldCheck, Car, Video, Server } from 'lucide-react';
+import { ConnectionStatus, DataOrigin } from '../../types';
 
-export const AnalyticsView: React.FC = () => {
+interface AnalyticsViewProps {
+  apiStatus?: ConnectionStatus;
+  wsStatus?: ConnectionStatus;
+  dataOrigin?: DataOrigin;
+}
+
+export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
+  apiStatus = 'connected',
+  wsStatus = 'connected',
+  dataOrigin = 'mock',
+}) => {
   return (
     <div className="flex-1 flex flex-col h-full bg-[#f4f7fb] p-6 space-y-5 overflow-y-auto">
       <div className="flex items-center justify-between bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs">
@@ -15,13 +26,32 @@ export const AnalyticsView: React.FC = () => {
                 City-Wide ANPR Analytics & Vision Diagnostics
               </h2>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                24H REAL-TIME METRICS
+                24H METRICS
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Corridor throughput, speed violation density, and neural OCR confidence levels across Delhi NCR.
             </p>
           </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+            dataOrigin === 'live' && apiStatus === 'connected'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+              : 'bg-amber-50 text-amber-800 border-amber-300'
+          }`}>
+            {dataOrigin === 'live' && apiStatus === 'connected'
+              ? '● DATA ORIGIN: LIVE SIGHTINGS'
+              : '▲ DATA ORIGIN: DEMO 24H BASELINE'}
+          </span>
+          <span className={`text-[10px] font-bold px-2 py-1 rounded-full border flex items-center space-x-1 ${
+            apiStatus === 'connected'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border-rose-200'
+          }`}>
+            <Server className="w-3 h-3" />
+            <span>API: {apiStatus === 'connected' ? 'ONLINE' : 'OFFLINE'}</span>
+          </span>
         </div>
       </div>
 

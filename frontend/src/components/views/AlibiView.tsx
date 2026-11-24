@@ -1,7 +1,18 @@
 import React, { useState } from 'react';
-import { Scale, CheckCircle2, XCircle, Search, ShieldAlert, Clock, MapPin } from 'lucide-react';
+import { Scale, CheckCircle2, XCircle, Search, ShieldAlert, Clock, MapPin, Server, AlertTriangle } from 'lucide-react';
+import { ConnectionStatus, DataOrigin } from '../../types';
 
-export const AlibiView: React.FC = () => {
+interface AlibiViewProps {
+  apiStatus?: ConnectionStatus;
+  wsStatus?: ConnectionStatus;
+  dataOrigin?: DataOrigin;
+}
+
+export const AlibiView: React.FC<AlibiViewProps> = ({
+  apiStatus = 'connected',
+  wsStatus = 'connected',
+  dataOrigin = 'mock',
+}) => {
   const [suspectPlate, setSuspectPlate] = useState('DL 8C AF 2381');
   const [claimedLocation, setClaimedLocation] = useState('Noida Sector 62');
   const [claimedTime, setClaimedTime] = useState('17:40');
@@ -27,6 +38,26 @@ export const AlibiView: React.FC = () => {
               Verify suspect alibis against real camera telemetry and minimum graph road transit times.
             </p>
           </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border flex items-center space-x-1 ${
+            dataOrigin === 'live' && apiStatus === 'connected'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+              : 'bg-amber-50 text-amber-800 border-amber-300'
+          }`}>
+            <span>
+              {dataOrigin === 'live' && apiStatus === 'connected'
+                ? '● DATA ORIGIN: LIVE FORENSICS'
+                : '▲ DATA ORIGIN: DEMO ROAD GRAPH'}
+            </span>
+          </span>
+          <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${
+            apiStatus === 'connected'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border-rose-200'
+          }`}>
+            API: {apiStatus === 'connected' ? 'ONLINE' : 'OFFLINE'}
+          </span>
         </div>
       </div>
 

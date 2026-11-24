@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera } from '../../types';
+import { Camera, ConnectionStatus, DataOrigin } from '../../types';
 import {
   Video,
   ShieldCheck,
@@ -20,12 +20,16 @@ import {
   Columns,
   Eye,
   AlertTriangle,
-  X
+  X,
+  Server
 } from 'lucide-react';
 
 interface CameraNetworkViewProps {
   cameras: Camera[];
   onOpenFeed?: (camId: string) => void;
+  apiStatus?: ConnectionStatus;
+  wsStatus?: ConnectionStatus;
+  dataOrigin?: DataOrigin;
 }
 
 const FOOTAGE_MAP: Record<string, {
@@ -160,7 +164,13 @@ const FOOTAGE_MAP: Record<string, {
   }
 };
 
-export const CameraNetworkView: React.FC<CameraNetworkViewProps> = ({ cameras, onOpenFeed }) => {
+export const CameraNetworkView: React.FC<CameraNetworkViewProps> = ({
+  cameras,
+  onOpenFeed,
+  apiStatus = 'connected',
+  wsStatus = 'connected',
+  dataOrigin = 'live',
+}) => {
   const [viewMode, setViewMode] = useState<'grid' | 'quad' | 'focus'>('grid');
   const [activeZone, setActiveZone] = useState<string>('all');
   const [focusCamId, setFocusCamId] = useState<string>('CAM_01');
@@ -250,13 +260,30 @@ export const CameraNetworkView: React.FC<CameraNetworkViewProps> = ({ cameras, o
             <Video className="w-6 h-6 animate-pulse" />
           </div>
           <div>
-            <div className="flex items-center space-x-2.5">
+            <div className="flex items-center flex-wrap gap-2">
               <h2 className="text-[17px] font-black text-slate-900 tracking-tight">
                 Municipal CCTV Stream Simulator & Multi-Junction Matrix
               </h2>
               <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center space-x-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                <span>12 RTSP STREAMS SYNCHRONIZED</span>
+                <span>12 RTSP STREAMS</span>
+              </span>
+              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                dataOrigin === 'live' && apiStatus === 'connected'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                  : 'bg-amber-50 text-amber-800 border-amber-300'
+              }`}>
+                {dataOrigin === 'live' && apiStatus === 'connected'
+                  ? '● DATA ORIGIN: LIVE RTSP MATRIX'
+                  : '▲ DATA ORIGIN: LOCAL SIMULATOR'}
+              </span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center space-x-1 ${
+                apiStatus === 'connected'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-200'
+              }`}>
+                <Server className="w-3 h-3" />
+                <span>API: {apiStatus === 'connected' ? 'ONLINE' : 'OFFLINE'}</span>
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">

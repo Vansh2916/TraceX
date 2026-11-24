@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Sighting, Alert } from './types';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Camera, Sighting, Alert, ConnectionStatus, DataOrigin } from './types';
 import { MOCK_CAMERAS, MOCK_ALERTS } from './data/mockData';
 import { fetchJson, getWebSocketUrl } from './utils/api';
 import { CommanderSidebar } from './components/CommanderSidebar';
 import { CommanderHeader } from './components/CommanderHeader';
+import { OperationalStatusBar } from './components/OperationalStatusBar';
 import { MetricCardsRow } from './components/MetricCardsRow';
 import { CommanderMapCard } from './components/CommanderMapCard';
 import { SelectedVehicleCard } from './components/SelectedVehicleCard';
@@ -39,31 +40,50 @@ export const App: React.FC = () => {
   const [isCitizenPWAOpen, setIsCitizenPWAOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
+  // Connection status & Data Origin state
+  const [apiStatus, setApiStatus] = useState<ConnectionStatus>('connecting');
+  const [wsStatus, setWsStatus] = useState<ConnectionStatus>('connecting');
+  const [dataOrigin, setDataOrigin] = useState<DataOrigin>('mock');
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState<boolean>(false);
+
   // WebSocket state
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   // Fetch initial base metadata
-  useEffect(() => {
-    const fetchBase = async () => {
-      try {
-        const [cData, sData, aData] = await Promise.all([
-          fetchJson<{ cameras: Camera[] }>('/api/cameras'),
-          fetchJson<{ sightings: Sighting[] }>('/api/sightings?limit=60'),
-          fetchJson<{ alerts: Alert[] }>('/api/alerts?limit=30'),
-        ]);
+  const fetchBase = useCallback(async () => {
+    try {
+      setApiStatus('connecting');
+      const [cData, sData, aData] = await Promise.all([
+        fetchJson<{ cameras: Camera[] }>('/api/cameras'),
+        fetchJson<{ sightings: Sighting[] }>('/api/sightings?limit=60'),
+        fetchJson<{ alerts: Alert[] }>('/api/alerts?limit=30'),
+      ]);
 
-        setCameras(cData.cameras && cData.cameras.length > 0 ? cData.cameras : MOCK_CAMERAS);
-        setSightings(sData.sightings || []);
-        setAlerts(aData.alerts && aData.alerts.length > 0 ? aData.alerts : MOCK_ALERTS);
-      } catch (err) {
-        console.warn('Backend API unavailable, using mock data:', err);
-        setCameras(MOCK_CAMERAS);
-        setAlerts(MOCK_ALERTS);
-      }
-    };
-    fetchBase();
+      const hasLiveCameras = Boolean(cData.cameras && cData.cameras.length > 0);
+      setCameras(hasLiveCameras ? cData.cameras : MOCK_CAMERAS);
+      setSightings(sData.sightings || []);
+      setAlerts(aData.alerts && aData.alerts.length > 0 ? aData.alerts : MOCK_ALERTS);
+
+      setApiStatus('connected');
+      setDataOrigin(hasLiveCameras ? 'live' : 'mock');
+      setLastSyncTime(new Date());
+      setApiError(null);
+    } catch (err: any) {
+      console.warn('Backend API unavailable, using mock data:', err);
+      setCameras(MOCK_CAMERAS);
+      setAlerts(MOCK_ALERTS);
+      setApiStatus('offline');
+      setDataOrigin('mock');
+      setApiError(err?.message || 'Backend API unreachable');
+    }
   }, []);
+
+  useEffect(() => {
+    fetchBase();
+  }, [fetchBase]);
 
   // Connect & verify WebSocket separately
   useEffect(() => {
@@ -76,6 +96,7 @@ export const App: React.FC = () => {
       if (isCleanedUp) return;
 
       try {
+        setWsStatus('connecting');
         console.log(`[Crusaders WS] Connecting to WebSocket endpoint: ${wsUrl}`);
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
@@ -99,11 +120,13 @@ export const App: React.FC = () => {
             if (msg.type === 'PONG') {
               console.log('[Crusaders WS] Verified WebSocket endpoint (received PONG from backend)');
               setWsConnected(true);
+              setWsStatus('connected');
               return;
             }
 
             // Valid telemetry payload also confirms verified connection
             setWsConnected(true);
+            setWsStatus('connected');
 
             if (msg.type === 'INIT_STATE') {
               if (msg.cameras) setCameras(msg.cameras);
@@ -122,6 +145,7 @@ export const App: React.FC = () => {
 
         ws.onclose = (event) => {
           setWsConnected(false);
+          setWsStatus('disconnected');
           if (pingInterval) clearInterval(pingInterval);
           console.warn(`[Crusaders WS] Disconnected (code: ${event.code}). Retrying in 3s...`);
           if (!isCleanedUp) {
@@ -132,10 +156,12 @@ export const App: React.FC = () => {
         ws.onerror = (err) => {
           console.warn('[Crusaders WS] Error on WebSocket endpoint:', err);
           setWsConnected(false);
+          setWsStatus('disconnected');
         };
       } catch (err) {
         console.error('[Crusaders WS] Failed to initialize WebSocket:', err);
         setWsConnected(false);
+        setWsStatus('disconnected');
         if (!isCleanedUp) {
           reconnectTimer = setTimeout(connectWs, 3000);
         }
@@ -150,6 +176,15 @@ export const App: React.FC = () => {
       if (wsRef.current) wsRef.current.close();
     };
   }, []);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    await fetchBase();
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    setTimeout(() => setIsRetrying(false), 800);
+  };
 
   const handleSearchPlate = (plate: string) => {
     setSelectedPlate(plate);
@@ -179,6 +214,22 @@ export const App: React.FC = () => {
           onOpenNotifications={() => setIsNotificationsOpen(!isNotificationsOpen)}
           alertCount={alerts.length || 3}
           isLive={wsConnected}
+          apiStatus={apiStatus}
+          wsStatus={wsStatus}
+          dataOrigin={dataOrigin}
+          onRetryConnection={handleRetry}
+        />
+
+        {/* Operational Status Bar Alongside Every View */}
+        <OperationalStatusBar
+          activeNav={activeNav}
+          apiStatus={apiStatus}
+          wsStatus={wsStatus}
+          dataOrigin={dataOrigin}
+          lastSyncTime={lastSyncTime}
+          errorMessage={apiError}
+          onRetry={handleRetry}
+          isRetrying={isRetrying}
         />
 
         {/* Dynamic View Router */}
@@ -261,6 +312,9 @@ export const App: React.FC = () => {
             selectedPlate={selectedPlate}
             onSelectPlate={(plate) => setSelectedPlate(plate)}
             onOpenLiveFeed={() => setIsConsecutiveTrackerOpen(true)}
+            apiStatus={apiStatus}
+            wsStatus={wsStatus}
+            dataOrigin={dataOrigin}
           />
         )}
 
@@ -269,17 +323,28 @@ export const App: React.FC = () => {
           <LiveMapView
             cameras={cameras}
             onOpenFeed={(camId) => setIsConsecutiveTrackerOpen(true)}
+            apiStatus={apiStatus}
+            wsStatus={wsStatus}
+            dataOrigin={dataOrigin}
           />
         )}
 
         {/* Dedicated Convoy View */}
         {activeNav === 'convoy_intelligence' && (
-          <ConvoyView />
+          <ConvoyView
+            apiStatus={apiStatus}
+            wsStatus={wsStatus}
+            dataOrigin={dataOrigin}
+          />
         )}
 
         {/* Dedicated Alibi View */}
         {activeNav === 'alibi_verification' && (
-          <AlibiView />
+          <AlibiView
+            apiStatus={apiStatus}
+            wsStatus={wsStatus}
+            dataOrigin={dataOrigin}
+          />
         )}
 
         {/* Dedicated Camera Network View */}
@@ -287,17 +352,29 @@ export const App: React.FC = () => {
           <CameraNetworkView
             cameras={cameras}
             onOpenFeed={(camId) => setIsConsecutiveTrackerOpen(true)}
+            apiStatus={apiStatus}
+            wsStatus={wsStatus}
+            dataOrigin={dataOrigin}
           />
         )}
 
         {/* Dedicated Analytics View */}
         {activeNav === 'analytics' && (
-          <AnalyticsView />
+          <AnalyticsView
+            apiStatus={apiStatus}
+            wsStatus={wsStatus}
+            dataOrigin={dataOrigin}
+          />
         )}
 
         {/* Dedicated Settings View */}
         {activeNav === 'settings' && (
-          <SettingsView />
+          <SettingsView
+            apiStatus={apiStatus}
+            wsStatus={wsStatus}
+            dataOrigin={dataOrigin}
+            onRetryConnection={handleRetry}
+          />
         )}
 
         {/* Vehicle Search View */}

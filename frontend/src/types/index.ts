@@ -130,3 +130,15 @@ export interface NLQueryResult {
   explanation: string;
   error?: string | null;
 }
+
+export type ConnectionStatus = 'connected' | 'connecting' | 'offline' | 'disconnected';
+export type DataOrigin = 'live' | 'mock';
+
+export interface TelemetryState {
+  apiStatus: ConnectionStatus;
+  wsStatus: ConnectionStatus;
+  dataOrigin: DataOrigin;
+  lastSyncTime: Date | null;
+  errorMessage: string | null;
+  reconnect?: () => Promise<void>;
+}
