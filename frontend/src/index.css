@@ -47,13 +47,29 @@ body {
   filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 }
 
-.custom-tooltip {
+.custom-tooltip,
+.tactical-map-tooltip,
+.leaflet-tooltip {
   background: #0f172a !important;
   color: #f8fafc !important;
   border: 1px solid #334155 !important;
-  border-radius: 6px !important;
-  padding: 3px 6px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Tooltip arrow overrides */
+.leaflet-tooltip-top:before {
+  border-top-color: #334155 !important;
+}
+.leaflet-tooltip-bottom:before {
+  border-bottom-color: #334155 !important;
+}
+.leaflet-tooltip-left:before {
+  border-left-color: #334155 !important;
+}
+.leaflet-tooltip-right:before {
+  border-right-color: #334155 !important;
 }
 
 /* Pulsing radar ring */

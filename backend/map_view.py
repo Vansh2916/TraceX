@@ -77,6 +77,18 @@ def get_standalone_map_html() -> str:
     body, html {{ width: 100%; height: 100%; overflow: hidden; background: #080b11; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; color: #f1f5f9; }}
     #map {{ width: 100%; height: 100%; background: #0a0e17; }}
     .dark-tactical-tiles {{ filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }}
+    .leaflet-tooltip, .tactical-map-tooltip {{
+      background: #0f172a !important;
+      color: #f8fafc !important;
+      border: 1px solid #334155 !important;
+      border-radius: 8px !important;
+      padding: 6px 10px !important;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+    }}
+    .leaflet-tooltip-top:before {{ border-top-color: #334155 !important; }}
+    .leaflet-tooltip-bottom:before {{ border-bottom-color: #334155 !important; }}
+    .leaflet-tooltip-left:before {{ border-left-color: #334155 !important; }}
+    .leaflet-tooltip-right:before {{ border-right-color: #334155 !important; }}
 
     /* Pulsing radar for camera nodes */
     @keyframes radar {{
