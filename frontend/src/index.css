@@ -42,6 +42,11 @@ body {
   filter: brightness(0.75) contrast(1.25) saturate(0.85);
 }
 
+/* Google Maps Dark Tactical Radar Filter (Zero Watermarks, High Contrast) */
+.dark-tactical-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
 .custom-tooltip {
   background: #0f172a !important;
   color: #f8fafc !important;

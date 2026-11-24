@@ -842,14 +842,31 @@ async def analyze_photo_endpoint(
     """
     Dedicated AI Vision endpoint:
     Automatically identifies vehicle color, license plate, and make/model from uploaded image.
+    Always returns valid JSON even if parsing or reading fails.
     """
-    image_bytes = await file.read()
-    analysis = await analyze_vehicle_photo(image_bytes, file.filename or "uploaded_car.jpg")
-    return {
-        "success": True,
-        "filename": file.filename,
-        "analysis": analysis
-    }
+    try:
+        image_bytes = await file.read()
+        if not image_bytes or len(image_bytes) == 0:
+            return {
+                "success": False,
+                "error": "Empty image payload received",
+                "filename": file.filename or "unknown.jpg",
+                "analysis": None
+            }
+        analysis = await analyze_vehicle_photo(image_bytes, file.filename or "uploaded_car.jpg")
+        return {
+            "success": True,
+            "filename": file.filename,
+            "analysis": analysis
+        }
+    except Exception as e:
+        logger.error(f"Vision analysis endpoint failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "filename": getattr(file, "filename", "unknown.jpg"),
+            "analysis": None
+        }
 
 @app.post("/api/simulate/upload-dashcam")
 async def upload_dashcam_frame(
@@ -905,7 +922,7 @@ async def upload_dashcam_frame(
     }
 
 class MapConfigRequest(BaseModel):
-    provider: Optional[str] = "OSM"
+    provider: Optional[str] = "GOOGLE_DARK"
     api_key: Optional[str] = ""
 
 @app.get("/api/config/map")
@@ -915,9 +932,10 @@ def get_map_config():
     except ImportError:
         from llm_client import load_keys
     load_keys()
-    provider = os.environ.get("MAP_PROVIDER", "OSM").upper()
+    provider = os.environ.get("MAP_PROVIDER", "GOOGLE_DARK").upper()
     api_key = (
         os.environ.get("MAP_API_KEY") or
+        os.environ.get("GOOGLE_MAPS_API_KEY") or
         os.environ.get("MAPBOX_ACCESS_TOKEN") or
         os.environ.get("MAPTILER_API_KEY") or
         os.environ.get("STADIA_API_KEY") or ""
@@ -926,16 +944,18 @@ def get_map_config():
         "provider": provider,
         "has_key": bool(api_key),
         "api_key_masked": f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else ("***" if api_key else ""),
-        "providers_supported": ["OSM", "CARTO", "MAPBOX", "MAPTILER", "STADIA", "GOOGLE_MAPS"]
+        "providers_supported": ["GOOGLE_DARK", "GOOGLE_HYBRID", "GOOGLE_ROADMAP", "GOOGLE_TERRAIN", "OSM", "MAPBOX", "MAPTILER", "STADIA", "CARTO"]
     }
 
 @app.post("/api/config/map")
 def update_map_config(cfg: MapConfigRequest):
-    provider = (cfg.provider or "OSM").upper()
+    provider = (cfg.provider or "GOOGLE_DARK").upper()
     key = cfg.api_key.strip() if cfg.api_key else ""
     os.environ["MAP_PROVIDER"] = provider
     os.environ["MAP_API_KEY"] = key
-    if provider == "MAPBOX":
+    if provider.startswith("GOOGLE"):
+        os.environ["GOOGLE_MAPS_API_KEY"] = key
+    elif provider == "MAPBOX":
         os.environ["MAPBOX_ACCESS_TOKEN"] = key
     elif provider == "MAPTILER":
         os.environ["MAPTILER_API_KEY"] = key

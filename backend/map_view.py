@@ -29,26 +29,37 @@ def get_standalone_map_html() -> str:
         from llm_client import load_keys
     load_keys()
 
-    provider = os.environ.get("MAP_PROVIDER", "OSM").upper()
+    provider = os.environ.get("MAP_PROVIDER", "GOOGLE_DARK").upper()
     map_key = (
         os.environ.get("MAP_API_KEY") or
+        os.environ.get("GOOGLE_MAPS_API_KEY") or
         os.environ.get("MAPBOX_ACCESS_TOKEN") or
         os.environ.get("MAPTILER_API_KEY") or
         os.environ.get("STADIA_API_KEY") or ""
     )
 
-    if provider == "MAPBOX" and map_key:
+    key_arg = f"&key={map_key}" if map_key else ""
+    if provider in ("GOOGLE_MAPS", "GOOGLE_HYBRID"):
+        tile_layer_code = f"L.tileLayer('https://mt{{s}}.google.com/vt/lyrs=y&x={{x}}&y={{y}}&z={{z}}{key_arg}', {{ maxZoom: 20, subdomains: '0123', attribution: '© Google Maps Satellite' }}).addTo(map);"
+    elif provider == "GOOGLE_DARK":
+        tile_layer_code = f"L.tileLayer('https://mt{{s}}.google.com/vt/lyrs=m&x={{x}}&y={{y}}&z={{z}}{key_arg}', {{ maxZoom: 20, subdomains: '0123', className: 'dark-tactical-tiles', attribution: '© Google Maps' }}).addTo(map);"
+    elif provider == "GOOGLE_ROADMAP":
+        tile_layer_code = f"L.tileLayer('https://mt{{s}}.google.com/vt/lyrs=m&x={{x}}&y={{y}}&z={{z}}{key_arg}', {{ maxZoom: 20, subdomains: '0123', attribution: '© Google Maps' }}).addTo(map);"
+    elif provider == "GOOGLE_TERRAIN":
+        tile_layer_code = f"L.tileLayer('https://mt{{s}}.google.com/vt/lyrs=p&x={{x}}&y={{y}}&z={{z}}{key_arg}', {{ maxZoom: 20, subdomains: '0123', attribution: '© Google Maps Terrain' }}).addTo(map);"
+    elif provider == "MAPBOX" and map_key:
         tile_layer_code = f"L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{{z}}/{{x}}/{{y}}?access_token={map_key}', {{ maxZoom: 19, attribution: '© Mapbox' }}).addTo(map);"
     elif provider == "MAPTILER" and map_key:
         tile_layer_code = f"L.tileLayer('https://api.maptiler.com/maps/dataviz-dark/{{z}}/{{x}}/{{y}}.png?key={map_key}', {{ maxZoom: 19, attribution: '© MapTiler' }}).addTo(map);"
     elif provider == "STADIA" and map_key:
         tile_layer_code = f"L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{{z}}/{{x}}/{{y}}{{r}}.png?api_key={map_key}', {{ maxZoom: 19, attribution: '© Stadia Maps' }}).addTo(map);"
-    elif provider == "GOOGLE_MAPS" and map_key:
-        tile_layer_code = f"L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={{x}}&y={{y}}&z={{z}}&key={map_key}', {{ maxZoom: 19, attribution: '© Google Maps' }}).addTo(map);"
-    elif provider == "CARTO":
-        tile_layer_code = "L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '© CARTO Dark Matter' }).addTo(map);"
-    else:
+    elif provider == "CARTO" and map_key:
+        tile_layer_code = f"L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png?api_key={map_key}', {{ maxZoom: 19, subdomains: 'abcd', attribution: '© CARTO Dark Matter' }}).addTo(map);"
+    elif provider == "OSM":
         tile_layer_code = "L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map);"
+    else:
+        # Default: Google Maps Dark Tactical Radar (Zero watermark, high reliability)
+        tile_layer_code = "L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: '0123', className: 'dark-tactical-tiles', attribution: '© Google Maps' }).addTo(map);"
     cameras_json = json.dumps(list(DELHI_CAMERAS.values()))
     edges_json = json.dumps(city_engine.get_network_edges())
     pcr_json = json.dumps(PCR_UNITS)
@@ -65,6 +76,7 @@ def get_standalone_map_html() -> str:
     * {{ margin: 0; padding: 0; box-sizing: border-box; }}
     body, html {{ width: 100%; height: 100%; overflow: hidden; background: #080b11; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; color: #f1f5f9; }}
     #map {{ width: 100%; height: 100%; background: #0a0e17; }}
+    .dark-tactical-tiles {{ filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }}
 
     /* Pulsing radar for camera nodes */
     @keyframes radar {{

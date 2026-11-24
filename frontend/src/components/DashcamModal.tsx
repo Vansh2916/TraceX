@@ -113,9 +113,14 @@ export const DashcamModal: React.FC<DashcamModalProps> = ({
         method: 'POST',
         body: formData,
       });
-      const data = await res.json();
-      if (data.success && data.analysis) {
-        setAnalysisResult(data.analysis);
+      if (res.ok) {
+        const rawText = await res.text();
+        if (rawText && rawText.trim()) {
+          const data = JSON.parse(rawText);
+          if (data.success && data.analysis) {
+            setAnalysisResult(data.analysis);
+          }
+        }
       }
     } catch (err) {
       console.error('Vision analysis failed', err);
@@ -150,15 +155,49 @@ export const DashcamModal: React.FC<DashcamModalProps> = ({
           method: 'POST',
           body: formData,
         });
-        const data = await res.json();
-        if (data.success && data.analysis) {
+        if (res.ok) {
+          const rawText = await res.text();
+          if (rawText && rawText.trim()) {
+            const data = JSON.parse(rawText);
+            if (data.success && data.analysis) {
+              setAnalysisResult({
+                ...data.analysis,
+                plate: data.analysis.plate || `${activeFeed.targetPlate} [PRERECORDED]`,
+              });
+            } else {
+              setAnalysisResult({
+                plate: `${activeFeed.targetPlate} [PRERECORDED]`,
+                color: 'Ground-Truth Color',
+                vehicle_type: 'Ground-Truth Model',
+                make_model: activeFeed.targetCar,
+                confidence: 0.0,
+                engine_mode: 'PRERECORDED BENCHMARK',
+                description: `Live OCR unrecognized. Displaying pre-recorded calibration target: ${activeFeed.targetPlate}`
+              });
+            }
+          }
+        } else {
           setAnalysisResult({
-            ...data.analysis,
-            plate: data.analysis.plate || activeFeed.targetPlate,
+            plate: `${activeFeed.targetPlate} [PRERECORDED]`,
+            color: 'Ground-Truth Color',
+            vehicle_type: 'Ground-Truth Model',
+            make_model: activeFeed.targetCar,
+            confidence: 0.0,
+            engine_mode: 'PRERECORDED BENCHMARK',
+            description: `Live OCR endpoint returned HTTP ${res.status}. Displaying pre-recorded calibration target: ${activeFeed.targetPlate}`
           });
         }
       } catch (e) {
         console.error(e);
+        setAnalysisResult({
+          plate: `${activeFeed.targetPlate} [PRERECORDED]`,
+          color: 'Ground-Truth Color',
+          vehicle_type: 'Ground-Truth Model',
+          make_model: activeFeed.targetCar,
+          confidence: 0.0,
+          engine_mode: 'PRERECORDED BENCHMARK',
+          description: `Live frame extraction failed. Displaying pre-recorded calibration target: ${activeFeed.targetPlate}`
+        });
       } finally {
         setAnalyzing(false);
       }

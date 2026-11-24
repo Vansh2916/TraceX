@@ -41,7 +41,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     nlPinsLayer: L.LayerGroup;
   } | null>(null);
 
-  // Apply Tile Layer Function (OpenStreetMap Standard Default)
+  // Apply Tile Layer Function (Google Maps Dark Default)
   const applyTileLayer = (map: L.Map, prov: string, key: string) => {
     if (tileLayerRef.current) {
       map.removeLayer(tileLayerRef.current);
@@ -51,7 +51,36 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     let layer: L.TileLayer;
     const cleanKey = key.trim();
 
-    if (prov === 'MAPBOX' && cleanKey) {
+    if (prov === 'GOOGLE_DARK') {
+      const url = `https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}${cleanKey ? `&key=${cleanKey}` : ''}`;
+      layer = L.tileLayer(url, {
+        maxZoom: 20,
+        subdomains: '0123',
+        className: 'dark-tactical-tiles',
+        attribution: '© Google Maps',
+      });
+    } else if (prov === 'GOOGLE_HYBRID' || prov === 'GOOGLE_MAPS') {
+      const url = `https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}${cleanKey ? `&key=${cleanKey}` : ''}`;
+      layer = L.tileLayer(url, {
+        maxZoom: 20,
+        subdomains: '0123',
+        attribution: '© Google Maps Satellite',
+      });
+    } else if (prov === 'GOOGLE_ROADMAP') {
+      const url = `https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}${cleanKey ? `&key=${cleanKey}` : ''}`;
+      layer = L.tileLayer(url, {
+        maxZoom: 20,
+        subdomains: '0123',
+        attribution: '© Google Maps',
+      });
+    } else if (prov === 'GOOGLE_TERRAIN') {
+      const url = `https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}${cleanKey ? `&key=${cleanKey}` : ''}`;
+      layer = L.tileLayer(url, {
+        maxZoom: 20,
+        subdomains: '0123',
+        attribution: '© Google Maps Terrain',
+      });
+    } else if (prov === 'MAPBOX' && cleanKey) {
       layer = L.tileLayer(
         `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${cleanKey}`,
         { maxZoom: 19, attribution: '© Mapbox' }
@@ -71,21 +100,23 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=${cleanKey}`,
         { maxZoom: 19, attribution: '© Stadia Maps' }
       );
-    } else if (prov === 'GOOGLE_MAPS' && cleanKey) {
+    } else if (prov === 'CARTO' && cleanKey) {
       layer = L.tileLayer(
-        `https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&key=${cleanKey}`,
-        { maxZoom: 19, attribution: '© Google Maps' }
-      );
-    } else if (prov === 'CARTO') {
-      layer = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?api_key=${cleanKey}`,
         { maxZoom: 19, subdomains: 'abcd', attribution: '© CARTO Dark Matter' }
       );
-    } else {
-      // Default: OpenStreetMap Standard (Full street names, landmarks, roads)
+    } else if (prov === 'OSM') {
       layer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      });
+    } else {
+      // Default: Google Maps Dark Radar (Cyber theme, no watermark, fast)
+      layer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: '0123',
+        className: 'dark-tactical-tiles',
+        attribution: '© Google Maps',
       });
     }
 
@@ -105,24 +136,31 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       attributionControl: true,
     });
 
-    // Default to OpenStreetMap Standard
-    const storedProv = localStorage.getItem('crusaders_map_provider') || 'OSM';
+    // Default to Google Maps Dark, migrating away from unkeyed CARTO
+    let storedProv = localStorage.getItem('crusaders_map_provider');
     const storedKey = localStorage.getItem('crusaders_map_key') || '';
+    if (!storedProv || (storedProv === 'CARTO' && !storedKey)) {
+      storedProv = 'GOOGLE_DARK';
+      localStorage.setItem('crusaders_map_provider', 'GOOGLE_DARK');
+    }
     setProvider(storedProv);
     setApiKey(storedKey);
 
     applyTileLayer(map, storedProv, storedKey);
 
-    // Also sync with backend /api/config/map (default: OSM)
+    // Also sync with backend /api/config/map
     fetch('/api/config/map')
       .then((r) => r.json())
       .then((cfg) => {
-        const activeProv = cfg?.provider || storedProv || 'OSM';
+        let activeProv = cfg?.provider || storedProv || 'GOOGLE_DARK';
+        if (activeProv === 'CARTO' && !storedKey) {
+          activeProv = 'GOOGLE_DARK';
+        }
         setProvider(activeProv);
         applyTileLayer(map, activeProv, storedKey);
       })
       .catch(() => {
-        applyTileLayer(map, 'OSM', '');
+        applyTileLayer(map, storedProv || 'GOOGLE_DARK', storedKey);
       });
 
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
@@ -492,15 +530,83 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         </div>
       </div>
 
-      {/* Floating Map Key & Layer Config Button (Top-Right) */}
-      <div className="absolute top-4 right-4 z-[400] pointer-events-auto">
+      {/* Floating Quick Layer Switcher & Key Config (Top-Right) */}
+      <div className="absolute top-4 right-4 z-[400] pointer-events-auto flex items-center space-x-1 bg-slate-900/90 p-1 border border-slate-700/80 rounded-xl shadow-xl backdrop-blur">
         <button
-          onClick={() => setShowConfig(true)}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 rounded-lg text-xs font-mono text-slate-200 shadow-xl backdrop-blur transition-all hover:border-sky-500/60"
+          type="button"
+          onClick={() => {
+            const next = 'GOOGLE_DARK';
+            setProvider(next);
+            localStorage.setItem('crusaders_map_provider', next);
+            if (mapRef.current) applyTileLayer(mapRef.current, next, apiKey);
+          }}
+          className={`px-2.5 py-1 text-[11px] font-mono rounded-lg transition-all ${
+            provider === 'GOOGLE_DARK'
+              ? 'bg-sky-600 text-white font-bold shadow-sm'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+          title="Google Maps Dark Radar (Cyber Theme)"
         >
-          <Layers className="w-3.5 h-3.5 text-sky-400" />
-          <span>Layer: {provider}</span>
-          <Key className="w-3 h-3 text-amber-400" />
+          Google Dark
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const next = 'GOOGLE_HYBRID';
+            setProvider(next);
+            localStorage.setItem('crusaders_map_provider', next);
+            if (mapRef.current) applyTileLayer(mapRef.current, next, apiKey);
+          }}
+          className={`px-2.5 py-1 text-[11px] font-mono rounded-lg transition-all ${
+            provider === 'GOOGLE_HYBRID' || provider === 'GOOGLE_MAPS'
+              ? 'bg-sky-600 text-white font-bold shadow-sm'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+          title="Google Maps Satellite Hybrid"
+        >
+          Satellite
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const next = 'GOOGLE_ROADMAP';
+            setProvider(next);
+            localStorage.setItem('crusaders_map_provider', next);
+            if (mapRef.current) applyTileLayer(mapRef.current, next, apiKey);
+          }}
+          className={`px-2.5 py-1 text-[11px] font-mono rounded-lg transition-all ${
+            provider === 'GOOGLE_ROADMAP'
+              ? 'bg-sky-600 text-white font-bold shadow-sm'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+          title="Google Maps Roadmap (Streets & Arteries)"
+        >
+          Streets
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const next = 'OSM';
+            setProvider(next);
+            localStorage.setItem('crusaders_map_provider', next);
+            if (mapRef.current) applyTileLayer(mapRef.current, next, apiKey);
+          }}
+          className={`px-2.5 py-1 text-[11px] font-mono rounded-lg transition-all ${
+            provider === 'OSM'
+              ? 'bg-sky-600 text-white font-bold shadow-sm'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+          }`}
+          title="OpenStreetMap Standard"
+        >
+          OSM
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowConfig(true)}
+          className="p-1.5 text-amber-400 hover:text-amber-300 hover:bg-slate-800 rounded-lg transition-colors ml-0.5"
+          title="Configure Map Providers & Custom API Keys"
+        >
+          <Key className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -529,17 +635,52 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                   onChange={(e) => setProvider(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-sky-500"
                 >
-                  <option value="CARTO">CARTO Dark Matter (Free / No Key Needed)</option>
+                  <option value="GOOGLE_DARK">Google Maps Dark Radar (Free / Cyber Aesthetic)</option>
+                  <option value="GOOGLE_HYBRID">Google Maps Satellite Hybrid (Free / Aerial Imagery)</option>
+                  <option value="GOOGLE_ROADMAP">Google Maps Roadmap (Free / High Detail Streets)</option>
+                  <option value="GOOGLE_TERRAIN">Google Maps Terrain (Free / Topography)</option>
+                  <option value="OSM">OpenStreetMap Standard (Free / Open Source)</option>
                   <option value="MAPBOX">Mapbox Dark v11 (Requires Access Token)</option>
                   <option value="MAPBOX_SAT">Mapbox Satellite Streets (Requires Token)</option>
                   <option value="MAPTILER">MapTiler Dataviz Dark (Requires API Key)</option>
                   <option value="STADIA">Stadia Maps Smooth Dark (Requires API Key)</option>
-                  <option value="GOOGLE_MAPS">Google Maps Hybrid (Requires API Key)</option>
-                  <option value="OSM">OpenStreetMap Standard (Free / No Key)</option>
+                  <option value="CARTO">CARTO Dark Matter (Requires Carto API Key)</option>
                 </select>
               </div>
 
-              {provider !== 'CARTO' && provider !== 'OSM' && (
+              {provider.startsWith('GOOGLE_') ? (
+                <div>
+                  <label className="block text-slate-300 mb-1.5 font-bold">
+                    Google Maps API Key (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Optional — works out-of-the-box without key"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-sky-500 text-xs font-mono"
+                  />
+                  <p className="mt-1 text-[11px] text-emerald-400 font-sans">
+                    ✓ Google Maps is active and operational. Key is optional.
+                  </p>
+                </div>
+              ) : provider === 'CARTO' ? (
+                <div>
+                  <label className="block text-slate-300 mb-1.5 font-bold">
+                    CARTO API Key (Required)
+                  </label>
+                  <input
+                    type="text"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Enter your Carto API key..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-sky-500 text-xs font-mono"
+                  />
+                  <p className="mt-1 text-[11px] text-amber-400 font-sans">
+                    Carto requires an API key. For free dark radar with no key, choose "Google Maps Dark Radar".
+                  </p>
+                </div>
+              ) : provider !== 'OSM' && (
                 <div>
                   <label className="block text-slate-300 mb-1.5 font-bold">
                     {provider.startsWith('MAPBOX') ? 'Mapbox Access Token (pk.eyJ...)' : `${provider} API Key`}
@@ -555,7 +696,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                     }
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-sky-500 text-xs font-mono"
                   />
-                  <p className="mt-1 text-[11px] text-slate-400">
+                  <p className="mt-1 text-[11px] text-slate-400 font-sans">
                     Saved to local storage and synchronized with backend environment.
                   </p>
                 </div>
@@ -572,16 +713,16 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    setProvider('CARTO');
+                    setProvider('GOOGLE_DARK');
                     setApiKey('');
-                    localStorage.setItem('crusaders_map_provider', 'CARTO');
+                    localStorage.setItem('crusaders_map_provider', 'GOOGLE_DARK');
                     localStorage.removeItem('crusaders_map_key');
-                    if (mapRef.current) applyTileLayer(mapRef.current, 'CARTO', '');
+                    if (mapRef.current) applyTileLayer(mapRef.current, 'GOOGLE_DARK', '');
                     setShowConfig(false);
                   }}
                   className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs"
                 >
-                  Reset to Carto Free
+                  Reset to Google Maps Dark
                 </button>
                 <button
                   type="submit"

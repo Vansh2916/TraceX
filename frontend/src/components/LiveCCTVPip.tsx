@@ -104,10 +104,17 @@ export const LiveCCTVPip: React.FC<LiveCCTVPipProps> = ({
               method: 'POST',
               body: formData
             });
-            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(`HTTP ${res.status}`);
+            }
+            const rawText = await res.text();
+            if (!rawText || !rawText.trim()) {
+              throw new Error('Empty response from Vision API');
+            }
+            const data = JSON.parse(rawText);
             
-            if (data.success && data.analysis) {
-              const detectedPlate = data.analysis.plate || active.targetPlate;
+            if (data.success && data.analysis && data.analysis.plate) {
+              const detectedPlate = data.analysis.plate;
               const numericSpeed = parseFloat(active.speed);
 
               setLastScanResult({
@@ -132,15 +139,17 @@ export const LiveCCTVPip: React.FC<LiveCCTVPipProps> = ({
                   color: data.analysis.color || 'White'
                 })
               }).catch(() => {});
+            } else {
+              throw new Error(data.error || 'No plate detected');
             }
-          } catch (e) {
-            // Fallback to active channel target
+          } catch (e: any) {
+            // Explicitly label as Prerecorded Corridor Benchmark Ground-Truth
             setLastScanResult({
-              plate: active.targetPlate,
+              plate: `${active.targetPlate} [PRERECORDED]`,
               speed: active.speed,
-              confidence: 0.98,
-              vehicle: 'White Mahindra Scorpio-N (SUV)',
-              engine: 'Native ANPR OCR',
+              confidence: 0.0,
+              vehicle: 'Ground-Truth Calibration Data',
+              engine: 'PRERECORDED BENCHMARK (Live OCR Offline)',
               time: new Date().toLocaleTimeString()
             });
           } finally {

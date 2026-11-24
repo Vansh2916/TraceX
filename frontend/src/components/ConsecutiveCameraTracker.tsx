@@ -16,6 +16,8 @@ import {
   X,
   Sparkles,
   Check,
+  AlertOctagon,
+  Database,
 } from 'lucide-react';
 
 interface ConsecutiveCameraTrackerProps {
@@ -33,6 +35,11 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
   const [cam1Captured, setCam1Captured] = useState(false);
   const [cam2Captured, setCam2Captured] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
+
+  // Optical OCR Live Status State
+  const [ocrStatus, setOcrStatus] = useState<'idle' | 'scanning' | 'live_success' | 'failed'>('idle');
+  const [ocrErrorMessage, setOcrErrorMessage] = useState<string | null>(null);
+  const [isPrerecorded, setIsPrerecorded] = useState(false);
 
   // Real Mathematical Telemetry Results
   const [telemetry, setTelemetry] = useState<{
@@ -68,31 +75,71 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
   const video1Ref = useRef<HTMLVideoElement>(null);
   const video2Ref = useRef<HTMLVideoElement>(null);
 
-  // Grab live video frame and send to real AI Vision OCR backend
-  const scanFrameFromVideo = async (video: HTMLVideoElement | null, camId: string) => {
-    if (!video) return null;
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.95));
-        if (blob) {
-          const formData = new FormData();
-          formData.append('file', new File([blob], `frame_${camId}.jpg`, { type: 'image/jpeg' }));
-          const res = await fetch('/api/vision/analyze', { method: 'POST', body: formData });
-          const data = await res.json();
-          if (data.success && data.analysis && data.analysis.plate) {
-            return data.analysis;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('Live frame OCR error:', err);
+  // Grab live video frame and send to real AI Vision OCR backend with safe JSON parsing
+  const scanFrameFromVideo = async (
+    video: HTMLVideoElement | null,
+    camId: string
+  ): Promise<{ success: boolean; data?: any; error?: string }> => {
+    if (!video) {
+      return { success: false, error: 'Video element reference unavailable' };
     }
-    return null;
+
+    try {
+      // Ensure video has actual dimensions before drawing to canvas
+      const vw = video.videoWidth || 1280;
+      const vh = video.videoHeight || 720;
+      if (vw === 0 || vh === 0) {
+        return { success: false, error: 'Video stream not yet decoded / 0 dimensions' };
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = vw;
+      canvas.height = vh;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return { success: false, error: 'Failed to obtain Canvas 2D context' };
+      }
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.95));
+      if (!blob || blob.size === 0) {
+        return { success: false, error: 'Canvas generated empty image frame' };
+      }
+
+      const formData = new FormData();
+      formData.append('file', new File([blob], `frame_${camId}.jpg`, { type: 'image/jpeg' }));
+
+      const res = await fetch('/api/vision/analyze', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        return {
+          success: false,
+          error: `HTTP ${res.status}: ${errorText.slice(0, 100) || 'Server returned empty error'}`,
+        };
+      }
+
+      const rawText = await res.text();
+      if (!rawText || !rawText.trim()) {
+        return { success: false, error: 'Unexpected end of JSON input (empty response from Vision API)' };
+      }
+
+      let data: any;
+      try {
+        data = JSON.parse(rawText);
+      } catch (jsonErr: any) {
+        return { success: false, error: `Invalid JSON returned by Vision API: ${jsonErr.message}` };
+      }
+
+      if (data.success && data.analysis && data.analysis.plate) {
+        return { success: true, data: data.analysis };
+      } else {
+        return { success: false, error: data.error || 'No readable license plate recognized in frame' };
+      }
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      console.warn('Live frame OCR error:', msg);
+      return { success: false, error: msg };
+    }
   };
 
   // Auto-run sequence on trigger
@@ -101,6 +148,9 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
     setStage('scanning_cam1');
     setCam1Captured(false);
     setCam2Captured(false);
+    setOcrStatus('scanning');
+    setOcrErrorMessage(null);
+    setIsPrerecorded(false);
 
     if (video1Ref.current) {
       video1Ref.current.currentTime = 0;
@@ -116,16 +166,26 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
       setCam1Captured(true);
       setStage('transit');
 
-      scanFrameFromVideo(video1Ref.current, 'CAM_01').then((res) => {
-        if (res && res.plate) {
-          setTelemetry((prev) => ({
-            ...prev,
-            plate: res.plate,
-            vehicle: `${res.color || 'Red'} ${res.make_model || 'Hyundai i10'}`,
-            aiEngine: res.engine_mode || prev.aiEngine,
-          }));
-        }
-      });
+      const cam1Res = await scanFrameFromVideo(video1Ref.current, 'CAM_01');
+      if (cam1Res.success && cam1Res.data) {
+        setOcrStatus('live_success');
+        setIsPrerecorded(false);
+        setTelemetry((prev) => ({
+          ...prev,
+          plate: cam1Res.data.plate,
+          vehicle: `${cam1Res.data.color || 'Red'} ${cam1Res.data.make_model || 'Hyundai i10'}`,
+          aiEngine: cam1Res.data.engine_mode || 'Multimodal Vision AI',
+        }));
+      } else {
+        // Explicitly flag OCR failure and label as Prerecorded Benchmark
+        setOcrStatus('failed');
+        setIsPrerecorded(true);
+        setOcrErrorMessage(cam1Res.error || 'Unexpected end of JSON input');
+        setTelemetry((prev) => ({
+          ...prev,
+          aiEngine: 'PRERECORDED BENCHMARK (Live Optical OCR Inactive)',
+        }));
+      }
 
       // Step 2: Transit period
       setTimeout(() => {
@@ -139,15 +199,30 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
 
           let detectedPlate = telemetry.plate;
           const cam2Res = await scanFrameFromVideo(video2Ref.current, 'CAM_02');
-          if (cam2Res && cam2Res.plate) {
-            detectedPlate = cam2Res.plate;
+          let liveOcrSucceeded = false;
+
+          if (cam2Res.success && cam2Res.data) {
+            detectedPlate = cam2Res.data.plate;
+            liveOcrSucceeded = true;
+            setOcrStatus('live_success');
+            setIsPrerecorded(false);
             setTelemetry((prev) => ({
               ...prev,
-              plate: cam2Res.plate,
-              aiEngine: cam2Res.engine_mode || prev.aiEngine,
+              plate: cam2Res.data.plate,
+              aiEngine: cam2Res.data.engine_mode || prev.aiEngine,
+            }));
+          } else {
+            // Flag failure explicitly
+            setOcrStatus('failed');
+            setIsPrerecorded(true);
+            setOcrErrorMessage(cam2Res.error || 'Unexpected end of JSON input');
+            setTelemetry((prev) => ({
+              ...prev,
+              aiEngine: 'PRERECORDED BENCHMARK (Live Optical OCR Inactive)',
             }));
           }
 
+          // Ingest sighting with explicit ground-truth or live OCR tags
           try {
             await fetch('/api/sightings', {
               method: 'POST',
@@ -155,7 +230,7 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
               body: JSON.stringify({
                 plate: detectedPlate || 'AP 10 AR 0658',
                 camera_id: 'CAM_02',
-                confidence: 0.98,
+                confidence: liveOcrSucceeded ? 0.98 : 0.85,
                 speed_kmh: 86.0,
                 vehicle_type: 'Hatchback',
                 color: 'Red',
@@ -165,6 +240,7 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
               onAutoTrackComplete({
                 ...telemetry,
                 plate: detectedPlate || telemetry.plate,
+                isPrerecorded: !liveOcrSucceeded,
               });
             }
           } catch (e) {
@@ -197,9 +273,16 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
                 <h3 className="text-[15px] font-bold text-slate-800 tracking-tight">
                   Consecutive Multi-Camera Auto-Tracking & Speed Engine
                 </h3>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200/80">
-                  AUTO CAPTURE ACTIVE
-                </span>
+                {isPrerecorded ? (
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold border border-amber-300 flex items-center space-x-1">
+                    <Database className="w-3 h-3 text-amber-600" />
+                    <span>PRERECORDED BENCHMARK MODE</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200/80">
+                    AUTO CAPTURE ACTIVE
+                  </span>
+                )}
               </div>
               <p className="text-[11.5px] text-slate-500 mt-0.5">
                 Real Live Camera 1 &rarr; Camera 2: Optical plate extraction, Haversine spatial distance, and instantaneous velocity computation.
@@ -214,13 +297,36 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
           </button>
         </div>
 
+        {/* OCR Failure / Fallback Notice Banner */}
+        {isPrerecorded && (
+          <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-3 flex items-start space-x-2.5 text-amber-900 shrink-0">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1 text-xs">
+              <div className="flex items-center space-x-2">
+                <span className="font-bold uppercase tracking-wider text-amber-900">
+                  Live Optical OCR Inactive / Fallback Engaged
+                </span>
+                <span className="text-[9.5px] font-mono bg-amber-200/90 text-amber-900 px-2 py-0.5 rounded font-bold">
+                  PRERECORDED GROUND-TRUTH
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                Live frame capture encountered: <span className="font-mono font-bold text-amber-950">{ocrErrorMessage || 'Unexpected end of JSON input'}</span>.
+                The plate match and velocity calculations below are labeled and displayed from the <span className="font-bold">Prerecorded Corridor Calibration Benchmark</span>.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 4 Steps Progression Row */}
         <div className="grid grid-cols-4 gap-2.5 shrink-0 text-xs select-none">
           {/* Step 1 */}
           <div
             className={`p-2.5 rounded-2xl border transition-all ${
               cam1Captured
-                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                ? isPrerecorded
+                  ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                  : 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
                 : stage === 'scanning_cam1'
                 ? 'bg-blue-50/80 border-blue-300 text-blue-900 ring-2 ring-blue-500/20'
                 : 'bg-slate-50 border-slate-200 text-slate-500'
@@ -229,14 +335,27 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
             <div className="flex items-center justify-between">
               <span className="font-bold text-[11.5px]">1. CAM_01 Connaught Pl</span>
               {cam1Captured ? (
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                isPrerecorded ? (
+                  <Database className="w-3.5 h-3.5 text-amber-600" />
+                ) : (
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                )
               ) : (
                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
               )}
             </div>
-            <p className="font-mono text-[11px] font-bold mt-1 text-slate-800">
-              {cam1Captured ? `Plate Locked: ${telemetry.plate}` : 'Scanning Live Stream...'}
+            <p className="font-mono text-[11px] font-bold mt-1 text-slate-800 truncate">
+              {cam1Captured
+                ? isPrerecorded
+                  ? `${telemetry.plate} [Prerecorded]`
+                  : `Plate Locked: ${telemetry.plate}`
+                : 'Scanning Live Stream...'}
             </p>
+            {isPrerecorded && cam1Captured && (
+              <span className="text-[9px] font-mono text-amber-700 bg-amber-100/80 px-1.5 py-0.2 rounded mt-0.5 inline-block">
+                Live OCR Failed (Using Benchmark)
+              </span>
+            )}
           </div>
 
           {/* Step 2 */}
@@ -262,7 +381,9 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
           <div
             className={`p-2.5 rounded-2xl border transition-all ${
               cam2Captured
-                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                ? isPrerecorded
+                  ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                  : 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
                 : stage === 'scanning_cam2'
                 ? 'bg-blue-50/80 border-blue-300 text-blue-900 ring-2 ring-blue-500/20'
                 : 'bg-slate-50 border-slate-200 text-slate-500'
@@ -270,10 +391,20 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
           >
             <div className="flex items-center justify-between">
               <span className="font-bold text-[11.5px]">3. CAM_02 India Gate</span>
-              {cam2Captured && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+              {cam2Captured && (
+                isPrerecorded ? (
+                  <Database className="w-3.5 h-3.5 text-amber-600" />
+                ) : (
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                )
+              )}
             </div>
-            <p className="font-mono text-[11px] font-bold mt-1 text-slate-800">
-              {cam2Captured ? 'Matching Sighting Confirmed' : 'Awaiting Entry...'}
+            <p className="font-mono text-[11px] font-bold mt-1 text-slate-800 truncate">
+              {cam2Captured
+                ? isPrerecorded
+                  ? 'Benchmark Ground-Truth Matched'
+                  : 'Matching Sighting Confirmed'
+                : 'Awaiting Entry...'}
             </p>
           </div>
 
@@ -323,17 +454,24 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
             <div className="relative z-10 p-2.5 bg-gradient-to-t from-black/85 via-black/40 to-transparent flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] font-bold uppercase text-slate-300">
-                  DETECTED:
+                  {isPrerecorded ? 'BENCHMARK:' : 'DETECTED:'}
                 </span>
                 <span className="font-mono font-black text-xs px-2 py-0.5 rounded bg-black/80 text-amber-300 border border-amber-400/50">
                   {telemetry.plate}
                 </span>
-                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-500/40">
-                  98% OPTICAL CONF
-                </span>
+                {isPrerecorded ? (
+                  <span className="text-[9.5px] font-bold text-amber-300 bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-500/50 flex items-center space-x-1">
+                    <Database className="w-2.5 h-2.5 text-amber-400" />
+                    <span>PRERECORDED</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-500/40">
+                    98% OPTICAL CONF
+                  </span>
+                )}
               </div>
               <span className="text-[10px] font-mono text-slate-400">
-                HSRP VERIFIED
+                {isPrerecorded ? 'CALIBRATION DATA' : 'HSRP VERIFIED'}
               </span>
             </div>
           </div>
@@ -364,7 +502,7 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
             <div className="relative z-10 p-2.5 bg-gradient-to-t from-black/85 via-black/40 to-transparent flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] font-bold uppercase text-slate-300">
-                  MATCHED:
+                  {isPrerecorded ? 'BENCHMARK:' : 'MATCHED:'}
                 </span>
                 <span className="font-mono font-black text-xs px-2 py-0.5 rounded bg-black/80 text-amber-300 border border-amber-400/50">
                   {telemetry.plate}
@@ -387,9 +525,17 @@ export const ConsecutiveCameraTracker: React.FC<ConsecutiveCameraTrackerProps> =
               <Sparkles className="w-4 h-4 text-blue-600" />
               <span>AUTOMATED PHYSICS & INTELLIGENCE CALCULATION RESULTS</span>
             </div>
-            <span className="text-[10.5px] font-mono text-slate-500">
-              AI Vision Engine: {telemetry.aiEngine}
-            </span>
+            <div className="flex items-center space-x-2">
+              {isPrerecorded && (
+                <span className="text-[9.5px] font-bold font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 flex items-center space-x-1">
+                  <Database className="w-3 h-3 text-amber-600" />
+                  <span>PRERECORDED BENCHMARK GROUND-TRUTH</span>
+                </span>
+              )}
+              <span className="text-[10.5px] font-mono text-slate-500">
+                Engine: {telemetry.aiEngine}
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-5 gap-3">
