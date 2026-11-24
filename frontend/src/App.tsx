@@ -14,7 +14,7 @@ import { ConsecutiveCameraTracker } from './components/ConsecutiveCameraTracker'
 import { LiveVehiclesDatabaseModal } from './components/LiveVehiclesDatabaseModal';
 import { DashcamModal } from './components/DashcamModal';
 import { CitizenPWAModal } from './components/CitizenPWAModal';
-import { JudgeDemoBar } from './components/JudgeDemoBar';
+
 import { ToastContainer, ToastItem } from './components/ToastNotification';
 
 // Dedicated Views for Sidebar Navigation
@@ -40,17 +40,9 @@ export const App: React.FC = () => {
   const [isCitizenPWAOpen, setIsCitizenPWAOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
-  // Judge Bar & Audio state
-  const [isJudgeBarOpen, setIsJudgeBarOpen] = useState(true);
+  // Audio state
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const [isAutoSimulating, setIsAutoSimulating] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [lastScenario, setLastScenario] = useState<{
-    title: string;
-    description: string;
-    algorithm: string;
-    action: string;
-  } | null>(null);
 
   // WebSocket state
   const [wsConnected, setWsConnected] = useState(false);
@@ -192,82 +184,6 @@ export const App: React.FC = () => {
     setActiveNav('trajectories');
   };
 
-  // Judge Demo Trigger Handlers
-  const handleTriggerGhostPlate = async () => {
-    try {
-      const res = await fetch('/api/simulate/ghost-plate', { method: 'POST' });
-      const data = await res.json();
-      setSelectedPlate('DL 8C AB 9110');
-      setLastScenario({
-        title: 'Ghost Vehicle Teleportation / Cloned License Plate Alert',
-        algorithm: 'DIJKSTRA MIN TRANSIT VIOLATION',
-        description: 'Plate DL 8C AB 9110 was detected at Connaught Place and IGI Airport within 15 seconds (14.5 km traversal requires min 14 mins).',
-        action: 'Immediate PCR Intercept unit Sher-2 dispatched to Dhaula Kuan NH-48 bottleneck.',
-      });
-      addToast(
-        'GHOST VEHICLE DETECTED',
-        'DL 8C AB 9110 detected at 2 distant junctions simultaneously.',
-        'CRITICAL'
-      );
-      if (data.alert) {
-        setAlerts((prev) => [data.alert, ...prev]);
-      }
-    } catch {
-      setSelectedPlate('DL 8C AB 9110');
-      setLastScenario({
-        title: 'Ghost Vehicle Teleportation / Cloned License Plate Alert',
-        algorithm: 'DIJKSTRA MIN TRANSIT VIOLATION',
-        description: 'Plate DL 8C AB 9110 detected across distant nodes. Cloned plate flagged.',
-        action: 'Patrol dispatch alerted at Dhaula Kuan bottleneck.',
-      });
-      addToast('GHOST VEHICLE DETECTED', 'DL 8C AB 9110 flagged for cloned plate.', 'CRITICAL');
-    }
-  };
-
-  const handleTriggerHitAndRun = async () => {
-    try {
-      const res = await fetch('/api/simulate/hit-and-run', { method: 'POST' });
-      const data = await res.json();
-      setSelectedPlate('DL 1C WX 0007');
-      setLastScenario({
-        title: 'Wanted Hit-and-Run Vehicle Ingestion Alert',
-        algorithm: 'MARKOV CHAIN INTERCEPT ETA',
-        description: 'Dark Grey Toyota Fortuner 4x4 (DL 1C WX 0007) spotted fleeing north from India Gate corridor at 88 km/h.',
-        action: 'Interception blockade initiated at Kashmere Gate Outer Ring corridor.',
-      });
-      addToast(
-        'HIT-AND-RUN ALERT',
-        'DL 1C WX 0007 spotted fleeing towards ITO corridor.',
-        'CRITICAL'
-      );
-      if (data.alert) {
-        setAlerts((prev) => [data.alert, ...prev]);
-      }
-    } catch {
-      setSelectedPlate('DL 1C WX 0007');
-      setLastScenario({
-        title: 'Wanted Hit-and-Run Vehicle Alert',
-        algorithm: 'MARKOV CHAIN INTERCEPT',
-        description: 'DL 1C WX 0007 spotted fleeing towards ITO.',
-        action: 'Interception blockade active.',
-      });
-      addToast('HIT-AND-RUN ALERT', 'DL 1C WX 0007 spotted fleeing corridor.', 'CRITICAL');
-    }
-  };
-
-  const handleSimulateTick = async () => {
-    try {
-      const res = await fetch('/api/simulate/tick', { method: 'POST' });
-      const data = await res.json();
-      if (data.sighting) {
-        setSightings((prev) => [data.sighting, ...prev.slice(0, 100)]);
-        addToast('ANPR STREAM SIGHTING', `${data.sighting.plate} logged at ${data.sighting.camera_id}`, 'INFO');
-      }
-    } catch (e) {
-      console.warn('Simulation tick error', e);
-    }
-  };
-
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#f4f7fb] text-slate-800 font-sans">
       {/* 1. Left Sidebar */}
@@ -293,29 +209,10 @@ export const App: React.FC = () => {
           onOpenNotifications={() => setIsNotificationsOpen(!isNotificationsOpen)}
           alertCount={alerts.length || 3}
           isLive={wsConnected}
-          isJudgeBarOpen={isJudgeBarOpen}
-          onToggleJudgeBar={() => setIsJudgeBarOpen(!isJudgeBarOpen)}
           isAudioEnabled={isAudioEnabled}
           onToggleAudio={() => setIsAudioEnabled(!isAudioEnabled)}
           onOpenCitizenPWA={() => setIsCitizenPWAOpen(true)}
         />
-
-        {/* Hackathon Judge Demo Bar */}
-        {isJudgeBarOpen && (
-          <JudgeDemoBar
-            onSimulateTick={handleSimulateTick}
-            onTriggerHitAndRun={handleTriggerHitAndRun}
-            onTriggerGhostPlate={handleTriggerGhostPlate}
-            onOpenDashcam={() => setIsDashcamOpen(true)}
-            onOpenNlSearch={() => setActiveNav('overview')}
-            onOpenConsecutiveTracker={() => setIsConsecutiveTrackerOpen(true)}
-            onOpenLiveVehiclesDB={() => setIsLiveVehiclesDBOpen(true)}
-            isAutoSimulating={isAutoSimulating}
-            onToggleAutoSim={() => setIsAutoSimulating(!isAutoSimulating)}
-            lastScenario={lastScenario}
-            onDismissScenario={() => setLastScenario(null)}
-          />
-        )}
 
         {/* Dynamic View Router */}
         {activeNav === 'overview' && (
