@@ -220,7 +220,12 @@ export const AlibiView: React.FC = () => {
         <div className="col-span-7 bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs flex flex-col justify-between space-y-4">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <span className="text-xs font-bold text-slate-800">Judicial Forensic Verdict</span>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-slate-800">Verification Result</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                  Demo result
+                </span>
+              </div>
               <span
                 className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                   currentCase.isImpossible
@@ -228,7 +233,7 @@ export const AlibiView: React.FC = () => {
                     : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 }`}
               >
-                {currentCase.isImpossible ? 'ALIBI DISPROVED / IMPOSSIBLE' : 'ALIBI CONSISTENT'}
+                {currentCase.isImpossible ? 'INCONSISTENT WITH TRANSIT LIMITS' : 'CONSISTENT WITH TRANSIT LIMITS'}
               </span>
             </div>
 
@@ -244,12 +249,12 @@ export const AlibiView: React.FC = () => {
                   {currentCase.isImpossible ? (
                     <>
                       <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span className="text-rose-800">Physical Spatiotemporal Contradiction Confirmed</span>
+                      <span className="text-rose-800">Travel-Time Discrepancy Flagged</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="text-emerald-800">Spatiotemporal Statement Consistent</span>
+                      <span className="text-emerald-800">Travel-Time Timeline Plausible</span>
                     </>
                   )}
                 </div>
@@ -285,7 +290,7 @@ export const AlibiView: React.FC = () => {
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <span className="text-[9.5px] font-bold uppercase text-slate-400 block font-mono">
-                    Forensic Confidence
+                    Calculation Match
                   </span>
                   <span className="text-sm font-black text-emerald-600 font-mono">99.8%</span>
                 </div>
@@ -293,24 +298,24 @@ export const AlibiView: React.FC = () => {
             </div>
           </div>
 
-          {/* Certificate Action */}
+          {/* Verification Summary Action */}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-[11px] text-slate-600">
             <div className="flex items-center gap-1.5 font-medium">
               <FileText className="w-4 h-4 text-blue-600" />
-              <span>Dijkstra Spatio-Temporal Proof Record auto-generated</span>
+              <span>Illustrative travel-time calculation</span>
             </div>
             <button
               onClick={() => setShowCertificateModal(true)}
               className="font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer flex items-center gap-1"
             >
-              <span>View Court-Admissible Certificate</span>
+              <span>View Verification Summary</span>
               <ExternalLink className="w-3 h-3" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Official Court-Admissible Forensic Certificate Modal */}
+      {/* Verification Summary Modal */}
       {showCertificateModal && (
         <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl border border-slate-300 relative space-y-6 text-slate-900 font-serif">
@@ -322,7 +327,7 @@ export const AlibiView: React.FC = () => {
               ✕
             </button>
 
-            {/* Header with Delhi Police / TraceX Seal */}
+            {/* Header */}
             <div className="text-center border-b-2 border-slate-900 pb-4">
               <div className="w-12 h-12 mx-auto rounded-full bg-slate-900 text-white flex items-center justify-center font-sans font-black text-xl mb-2 shadow-md">
                 ⚖
@@ -331,23 +336,26 @@ export const AlibiView: React.FC = () => {
                 Delhi Municipal Traffic Surveillance Intelligence
               </h2>
               <p className="text-xs uppercase tracking-widest text-slate-500 font-sans mt-0.5">
-                Cyber Forensic Trajectory Analysis & Spatiotemporal Validation Unit
+                Trajectory Analysis & Spatiotemporal Travel-Time Verification
               </p>
-              <div className="mt-2 text-[10px] font-mono text-slate-400 font-sans">
-                REF: {currentCase.firNumber} • SEC 65B INDIAN EVIDENCE ACT COMPLIANT
+              <div className="mt-2 text-[10px] font-mono text-slate-500 font-sans flex items-center justify-center gap-2">
+                <span>REF: {currentCase.firNumber}</span>
+                <span>•</span>
+                <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  Demo result — For simulation & technical review only
+                </span>
               </div>
             </div>
 
             {/* Certificate Body */}
             <div className="space-y-3 text-xs leading-relaxed font-sans">
-              <p className="font-semibold text-slate-800">
-                This is to officially certify that license plate <b className="font-mono">{currentCase.plate}</b>{' '}
-                was subjected to city-wide Dijkstra graph verification across the Delhi municipal CCTV optical network.
+              <p className="font-medium text-slate-800">
+                This verification summary provides an illustrative travel-time calculation comparing reported presence of license plate <b className="font-mono">{currentCase.plate}</b> against camera telemetry across the municipal CCTV network.
               </p>
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 font-mono text-[11px] space-y-1.5">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Suspect / Subject:</span>
+                  <span className="text-slate-500">Subject:</span>
                   <span className="font-bold">{currentCase.suspectName}</span>
                 </div>
                 <div className="flex justify-between">
@@ -363,13 +371,13 @@ export const AlibiView: React.FC = () => {
                   <span>{currentCase.distanceKm} km (Direct corridor)</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Min. Dijkstra Travel Time:</span>
+                  <span className="text-slate-500">Min. Travel Time Estimate:</span>
                   <span className="font-bold">{currentCase.minTransitMinutes} minutes</span>
                 </div>
                 <div className="flex justify-between border-t border-slate-200 pt-1 mt-1">
-                  <span className="text-slate-500">Judicial Finding:</span>
+                  <span className="text-slate-500">Feasibility Assessment:</span>
                   <span className={`font-black ${currentCase.isImpossible ? 'text-rose-600' : 'text-emerald-600'}`}>
-                    {currentCase.isImpossible ? 'PHYSICALLY IMPOSSIBLE (FALSE ALIBI)' : 'CONSISTENT WITH ALIBI'}
+                    {currentCase.isImpossible ? 'TRANSIT TIME INFEASIBLE (TIMELINE DISCREPANCY)' : 'PLAUSIBLE TRAVEL TIMELINE'}
                   </span>
                 </div>
               </div>
@@ -390,7 +398,7 @@ export const AlibiView: React.FC = () => {
                   className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Print Certificate</span>
+                  <span>Print Summary</span>
                 </button>
                 <button
                   onClick={() => setShowCertificateModal(false)}
