@@ -122,11 +122,17 @@ export interface AlibiResult {
 }
 
 export interface NLQueryResult {
+  success?: boolean;
+  found?: boolean;
+  query_type?: string;
+  requested_plate?: string;
+  normalized_plate?: string;
   user_query: string;
   generated_sql: string;
   mode: string;
   results_count: number;
   results: any[];
   explanation: string;
+  message?: string;
   error?: string | null;
 }

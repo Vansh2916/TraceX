@@ -59,6 +59,49 @@ def clean_sql(text: str) -> str:
     text = text.rstrip(";")
     return text
 
+def normalize_plate_string(raw: str) -> str:
+    """Normalize vehicle plate string by stripping whitespace, hyphens, and non-alphanumerics."""
+    return re.sub(r'[^A-Z0-9]', '', raw.upper())
+
+def extract_explicit_plate(query_text: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Extract an explicit vehicle plate registration identifier from user query if present.
+    Returns (raw_plate, normalized_plate) or (None, None).
+    Strictly avoids returning first available record or falling back to unrelated vehicles.
+    """
+    q = query_text.strip()
+
+    # Pattern 1: Standard Indian registration format:
+    # Handles: DL 1C AA 9999, DL 1C WX 0007, HR 26 DQ 8888, DL8CAF2381, UP 16 BT 4097, DL 10C ST 1010
+    m_ind = re.search(r'\b([A-Za-z]{2}[\s-]?[0-9]{1,2}\s?[A-Za-z]{0,2}[\s-]?[A-Za-z]{1,3}[\s-]?[0-9]{4})\b', q, re.IGNORECASE)
+    if m_ind:
+        cand = m_ind.group(1).strip()
+        return cand, normalize_plate_string(cand)
+
+    # Pattern 2: Hyphenated identifier / test registration token (e.g. QA-DEMO-UNKNOWN, TEST-123-ABC)
+    m_hyphen = re.search(r'\b([A-Za-z0-9]{2,}(?:-[A-Za-z0-9]+)+)\b', q)
+    if m_hyphen:
+        cand = m_hyphen.group(1).strip()
+        norm = normalize_plate_string(cand)
+        if len(norm) >= 4 and any(c.isalpha() for c in cand):
+            return cand, norm
+
+    # Pattern 3: Explicit keyword prefix: 'plate: XYZ', 'plate XYZ', 'vehicle XYZ', 'registration XYZ', 'for XYZ'
+    m_kw = re.search(r'\b(?:plate|registration|reg|vehicle|for)\s*(?:no\.?|number|#)?[:=\s]+([A-Za-z0-9-]+)\b', q, re.IGNORECASE)
+    if m_kw:
+        cand = m_kw.group(1).strip()
+        norm = normalize_plate_string(cand)
+        if len(norm) >= 4 and any(c.isalpha() for c in cand) and any(c.isdigit() or '-' in cand for c in cand):
+            return cand, norm
+
+    # Pattern 4: Whole string is a single plate-like code
+    if re.fullmatch(r'[A-Za-z0-9\s-]+', q):
+        norm = normalize_plate_string(q)
+        if len(norm) >= 4 and any(c.isalpha() for c in q) and any(c.isdigit() or '-' in q for c in q):
+            return q, norm
+
+    return None, None
+
 def is_safe_select_query(sql: str) -> bool:
     """Validate that query is strictly a single read-only SELECT statement."""
     normalized = sql.strip().upper()
@@ -78,16 +121,14 @@ def offline_fallback_sql(query_text: str) -> Tuple[str, str]:
     """
     q = query_text.lower()
 
-    # Plate specific lookup (e.g. DL 1C AA 9999 or DL1CAA9999 or DL 1C WX 0007)
-    plate_match = re.search(r"([a-z]{2}\s?[0-9]{1,2}\s?[a-z]{1,3}\s?[0-9]{4})", q, re.IGNORECASE)
-    if plate_match:
-        raw_plate = plate_match.group(1).upper()
-        # formatted with spaces if needed
+    # Plate specific lookup with exact normalized matching
+    raw_plate, norm_plate = extract_explicit_plate(query_text)
+    if raw_plate and norm_plate:
         return (
-            f"SELECT s.id, s.plate, s.camera_id, c.name as camera_name, s.iso_time, s.speed_kmh, s.confidence, s.vehicle_type, s.color, s.flags "
+            f"SELECT s.id, s.plate, s.camera_id, c.name as camera_name, c.lat, c.lon, s.iso_time, s.speed_kmh, s.confidence, s.vehicle_type, s.color, s.flags "
             f"FROM sightings s LEFT JOIN cameras c ON s.camera_id = c.id "
-            f"WHERE UPPER(REPLACE(s.plate, ' ', '')) LIKE '%{raw_plate.replace(' ', '')}%' "
-            f"ORDER BY s.timestamp_sec DESC LIMIT 25",
+            f"WHERE UPPER(REPLACE(REPLACE(s.plate, ' ', ''), '-', '')) = '{norm_plate}' "
+            f"ORDER BY s.timestamp_sec DESC LIMIT 50",
             f"Filtered sightings for license plate {raw_plate} with camera coordinates and trajectory timestamps."
         )
 
@@ -216,10 +257,79 @@ async def execute_nl_to_sql(user_prompt: str) -> Dict[str, Any]:
     Convert Natural Language query to SQL using high-speed Multi-LLM inference
     (Groq, OpenRouter, Cohere, Gemini) with strict read-only SQLite validation,
     or rule-based offline fallback.
+
+    CRITICAL FIX (Bug Fix 04):
+    If an explicit vehicle plate registration is present, exact deterministic entity
+    matching takes precedence over generative interpretation. Never substitute another
+    vehicle's sighting, never fall back to latest sightings, and return a safe structured
+    empty state when no records match.
     """
     generated_sql = ""
     mode = "OFFLINE_RULE_BASED"
     explanation = ""
+
+    # Check for explicit vehicle registration identifier
+    raw_plate, norm_plate = extract_explicit_plate(user_prompt)
+
+    if raw_plate and norm_plate:
+        # Deterministic exact-plate lookup takes strict precedence
+        mode = "EXACT_PLATE_LOOKUP"
+        param_sql = (
+            "SELECT s.id, s.plate, s.camera_id, c.name as camera_name, c.lat, c.lon, "
+            "s.iso_time, s.speed_kmh, s.confidence, s.vehicle_type, s.color, s.flags "
+            "FROM sightings s LEFT JOIN cameras c ON s.camera_id = c.id "
+            "WHERE UPPER(REPLACE(REPLACE(s.plate, ' ', ''), '-', '')) = ? "
+            "ORDER BY s.timestamp_sec DESC LIMIT 50"
+        )
+        display_sql = (
+            "SELECT s.id, s.plate, s.camera_id, c.name as camera_name, c.lat, c.lon, "
+            "s.iso_time, s.speed_kmh, s.confidence, s.vehicle_type, s.color, s.flags "
+            "FROM sightings s LEFT JOIN cameras c ON s.camera_id = c.id "
+            f"WHERE UPPER(REPLACE(REPLACE(s.plate, ' ', ''), '-', '')) = '{norm_plate}' "
+            "ORDER BY s.timestamp_sec DESC LIMIT 50"
+        )
+        generated_sql = display_sql
+        explanation = f"Exact normalized query executed for registration plate: {raw_plate}"
+
+        conn = None
+        results = []
+        error = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(param_sql, (norm_plate,))
+            rows = cur.fetchall()
+            for r in rows:
+                results.append(dict(r))
+        except Exception as e:
+            error = str(e)
+            logger.error(f"SQL execution error for plate {raw_plate}: {e}")
+        finally:
+            if conn:
+                conn.close()
+
+        found = len(results) > 0
+        message = (
+            f"Found {len(results)} sighting(s) for vehicle {raw_plate}."
+            if found
+            else f"No sightings found for {raw_plate}."
+        )
+
+        return {
+            "success": error is None,
+            "found": found,
+            "query_type": "vehicle_lookup",
+            "requested_plate": raw_plate,
+            "normalized_plate": norm_plate,
+            "user_query": user_prompt,
+            "generated_sql": generated_sql,
+            "mode": mode,
+            "results_count": len(results),
+            "results": results,
+            "explanation": explanation,
+            "message": message,
+            "error": error
+        }
 
     # Call LLM client (Groq -> OpenRouter -> Cohere -> Gemini)
     llm_res = call_text_llm(
@@ -243,12 +353,13 @@ async def execute_nl_to_sql(user_prompt: str) -> Dict[str, Any]:
         explanation = fallback_exp
 
     # Execute SQL on SQLite database
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = None
     results = []
     error = None
 
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
         cur.execute(generated_sql)
         rows = cur.fetchall()
         for r in rows:
@@ -256,25 +367,29 @@ async def execute_nl_to_sql(user_prompt: str) -> Dict[str, Any]:
     except Exception as e:
         error = str(e)
         logger.error(f"SQL execution error: {e} | Query: {generated_sql}")
-        # Secondary fallback if custom query had syntax error
-        try:
-            safe_fallback = "SELECT s.plate, s.camera_id, c.name as camera_name, s.speed_kmh, s.flags, s.iso_time FROM sightings s JOIN cameras c ON s.camera_id = c.id ORDER BY s.timestamp_sec DESC LIMIT 20"
-            cur.execute(safe_fallback)
-            results = [dict(r) for r in cur.fetchall()]
-            generated_sql = safe_fallback
-            explanation = "Executed standard telemetry query after syntax resolution."
-            error = None
-        except Exception as e2:
-            error = str(e2)
+        # Note: Do not silently broaden into generic sightings if error occurs; report error cleanly
+        results = []
     finally:
-        conn.close()
+        if conn:
+            conn.close()
+
+    found = len(results) > 0
+    message = (
+        f"Found {len(results)} record(s) matching your query."
+        if found
+        else "No records found matching your query."
+    )
 
     return {
+        "success": error is None,
+        "found": found,
+        "query_type": "general_query",
         "user_query": user_prompt,
         "generated_sql": generated_sql,
         "mode": mode,
         "results_count": len(results),
         "results": results,
         "explanation": explanation,
+        "message": message,
         "error": error
     }

@@ -1,34 +1,52 @@
-import React, { useState } from 'react';
-import { Sparkles, Send, Mic, CheckCircle2 } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Sparkles, Send, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 interface AISearchAssistantCardProps {
   onExecuteQuery?: (query: string) => void;
+}
+
+interface AssistantMessage {
+  id: string;
+  sender: 'user' | 'ai';
+  text: string;
+  found?: boolean;
+  isError?: boolean;
+  requestedPlate?: string;
+  thumb?: string;
 }
 
 export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
   onExecuteQuery,
 }) => {
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Array<{ sender: 'user' | 'ai'; text: string; thumb?: string }>>([
+  const [messages, setMessages] = useState<AssistantMessage[]>([
     {
+      id: 'init-1',
       sender: 'user',
-      text: 'Where was DL8CAF2381 in the last 30 minutes?',
+      text: 'Show sightings for DL 1C AA 9999',
     },
     {
+      id: 'init-2',
       sender: 'ai',
-      text: 'Last seen at Rajpath Rd, 17:42:15. Moving towards India Gate.',
-      thumb: '/mockup_assets/selected_vehicle_corolla.jpg',
+      text: 'Vehicle DL 1C AA 9999 logged at Lajpat Nagar Flyover (CAM_10). Moving within speed limit.',
+      found: true,
+      requestedPlate: 'DL 1C AA 9999',
     },
   ]);
   const [loading, setLoading] = useState(false);
+  const activeRequestIdRef = useRef<number>(0);
 
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!input.trim() || loading) return;
 
     const userText = input.trim();
+    const requestId = ++activeRequestIdRef.current;
     setInput('');
-    setMessages((prev) => [...prev, { sender: 'user', text: userText }]);
+    setMessages((prev) => [
+      ...prev,
+      { id: `u-${requestId}`, sender: 'user', text: userText },
+    ]);
     setLoading(true);
 
     try {
@@ -37,27 +55,58 @@ export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: userText }),
       });
+
+      // Ignore outdated response if a newer query was submitted
+      if (requestId !== activeRequestIdRef.current) return;
+
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}`);
+      }
+
       const data = await res.json();
-      const answer = data.answer || data.explanation || `Processed intelligence query for: ${userText}`;
+
+      let answerText = '';
+      let isFound = data.found ?? (data.results && data.results.length > 0);
+
+      if (data.query_type === 'vehicle_lookup' && !isFound) {
+        const plate = data.requested_plate || userText;
+        answerText = `No vehicle records found. No sightings are currently available for ${plate}. Please verify the registration number or try another search.`;
+      } else if (!isFound) {
+        answerText = data.message || `No records found matching: "${userText}".`;
+      } else {
+        answerText =
+          data.message ||
+          data.explanation ||
+          `Found ${data.results_count || data.results?.length} sighting(s) matching your inquiry.`;
+      }
+
       setMessages((prev) => [
         ...prev,
         {
+          id: `ai-${requestId}`,
           sender: 'ai',
-          text: answer,
-          thumb: '/mockup_assets/selected_vehicle_corolla.jpg',
+          text: answerText,
+          found: isFound,
+          requestedPlate: data.requested_plate,
         },
       ]);
       if (onExecuteQuery) onExecuteQuery(userText);
     } catch (err) {
+      if (requestId !== activeRequestIdRef.current) return;
       setMessages((prev) => [
         ...prev,
         {
+          id: `err-${requestId}`,
           sender: 'ai',
-          text: 'DL8CAF2381 logged at Rajpath Rd heading towards India Gate corridor.',
+          text: `Query service temporarily unavailable. Failed to process "${userText}". Please verify connection and retry.`,
+          isError: true,
+          found: false,
         },
       ]);
     } finally {
-      setLoading(false);
+      if (requestId === activeRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -83,9 +132,9 @@ export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
 
       {/* Chat Messages */}
       <div className="space-y-1.5 overflow-y-auto max-h-[92px] pr-1 py-1 text-[10.5px]">
-        {messages.map((m, idx) => (
+        {messages.map((m) => (
           <div
-            key={idx}
+            key={m.id}
             className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {m.sender === 'user' ? (
@@ -93,18 +142,25 @@ export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
                 {m.text}
               </div>
             ) : (
-              <div className="bg-slate-50 border border-slate-200/80 rounded-xl rounded-tl-xs p-1.5 max-w-[95%] text-slate-700 flex items-start space-x-1.5 shadow-xs">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+              <div
+                className={`border rounded-xl rounded-tl-xs p-1.5 max-w-[95%] flex items-start space-x-1.5 shadow-xs ${
+                  m.isError
+                    ? 'bg-rose-50/80 border-rose-200 text-rose-800'
+                    : m.found === false
+                    ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                    : 'bg-slate-50 border-slate-200/80 text-slate-700'
+                }`}
+              >
+                {m.isError ? (
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                ) : m.found === false ? (
+                  <Info className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                ) : (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                )}
                 <div className="flex-1">
                   <p className="leading-snug">{m.text}</p>
                 </div>
-                {m.thumb && (
-                  <img
-                    src={m.thumb}
-                    alt="Thumbnail"
-                    className="w-7 h-5 rounded object-cover border border-slate-200 shrink-0 mt-0.5"
-                  />
-                )}
               </div>
             )}
           </div>
@@ -127,7 +183,8 @@ export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
         />
         <button
           type="submit"
-          className="absolute right-1 w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition shadow-xs"
+          disabled={loading || !input.trim()}
+          className="absolute right-1 w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white flex items-center justify-center transition shadow-xs cursor-pointer"
         >
           <Send className="w-2.5 h-2.5" />
         </button>

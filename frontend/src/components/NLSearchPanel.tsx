@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { NLQueryResult } from '../types';
-import { Sparkles, Terminal, Database, Send, MapPin, Check, Copy, AlertCircle } from 'lucide-react';
+import { Sparkles, Terminal, Database, Send, MapPin, Check, Copy, AlertCircle, SearchX } from 'lucide-react';
 
 interface NLSearchPanelProps {
   onPinResultsToMap: (pins: Array<{ lat: number; lon: number; label: string; plate?: string }>) => void;
@@ -10,7 +10,9 @@ export const NLSearchPanel: React.FC<NLSearchPanelProps> = ({ onPinResultsToMap 
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<NLQueryResult | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const activeRequestIdRef = useRef<number>(0);
 
   const presets = [
     'Find all speeding vehicles over 80 km/h',
@@ -23,6 +25,11 @@ export const NLSearchPanel: React.FC<NLSearchPanelProps> = ({ onPinResultsToMap 
 
   const handleSearch = async (queryText: string) => {
     if (!queryText.trim() || loading) return;
+    const requestId = ++activeRequestIdRef.current;
+
+    // Clear previous results to prevent stale contamination
+    setResult(null);
+    setApiError(null);
     setLoading(true);
     setQuery(queryText);
 
@@ -32,15 +39,32 @@ export const NLSearchPanel: React.FC<NLSearchPanelProps> = ({ onPinResultsToMap 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: queryText })
       });
+
+      if (requestId !== activeRequestIdRef.current) return;
+
+      if (!res.ok) {
+        throw new Error(`Server returned HTTP ${res.status}`);
+      }
+
       const data: NLQueryResult = await res.json();
       setResult(data);
 
-      // Auto pin to map if results contain lat/lon or camera info
-      extractAndPin(data.results);
-    } catch (err) {
+      // Auto pin to map ONLY if results exist and contain coordinates
+      if (data.results && data.results.length > 0) {
+        extractAndPin(data.results);
+      } else {
+        // Clear pins if no results
+        onPinResultsToMap([]);
+      }
+    } catch (err: any) {
+      if (requestId !== activeRequestIdRef.current) return;
       console.error('NL Query failed', err);
+      setApiError(err?.message || 'Unable to execute query. Check network connection.');
+      onPinResultsToMap([]);
     } finally {
-      setLoading(false);
+      if (requestId === activeRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -130,7 +154,17 @@ export const NLSearchPanel: React.FC<NLSearchPanelProps> = ({ onPinResultsToMap 
           </div>
         )}
 
-        {!loading && !result && (
+        {/* API Error State */}
+        {!loading && apiError && (
+          <div className="p-6 rounded-xl border border-rose-900/40 bg-rose-950/20 text-center space-y-2">
+            <AlertCircle className="w-8 h-8 mx-auto text-rose-500" />
+            <h4 className="text-sm font-bold text-rose-200">Query Service Unavailable</h4>
+            <p className="text-xs text-rose-300/80 font-mono max-w-md mx-auto">{apiError}</p>
+            <p className="text-[11px] text-slate-400">Please check server connectivity or try a different query.</p>
+          </div>
+        )}
+
+        {!loading && !result && !apiError && (
           <div className="text-center py-16 text-slate-500 space-y-2">
             <Database className="w-8 h-8 mx-auto opacity-30" />
             <p className="text-xs font-mono">Run a natural language query or pick a preset above.</p>
@@ -150,6 +184,8 @@ export const NLSearchPanel: React.FC<NLSearchPanelProps> = ({ onPinResultsToMap 
                   <span className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold ${
                     result.mode === 'GEMINI_2.5_FLASH'
                       ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                      : result.mode === 'EXACT_PLATE_LOOKUP'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                       : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                   }`}>
                     {result.mode}
@@ -176,18 +212,20 @@ export const NLSearchPanel: React.FC<NLSearchPanelProps> = ({ onPinResultsToMap 
             {/* Results Controls */}
             <div className="flex items-center justify-between text-xs font-mono">
               <div className="text-slate-300">
-                Matched Rows: <b className="text-emerald-400">{result.results_count}</b>
+                Matched Rows: <b className={result.results_count > 0 ? "text-emerald-400" : "text-amber-400"}>{result.results_count}</b>
               </div>
-              <button
-                onClick={() => extractAndPin(result.results)}
-                className="px-2.5 py-1 rounded bg-emerald-600/30 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 text-[11px] font-mono flex items-center space-x-1 transition"
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                <span>Pin to Map</span>
-              </button>
+              {result.results_count > 0 && (
+                <button
+                  onClick={() => extractAndPin(result.results)}
+                  className="px-2.5 py-1 rounded bg-emerald-600/30 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 text-[11px] font-mono flex items-center space-x-1 transition"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>Pin to Map</span>
+                </button>
+              )}
             </div>
 
-            {/* Results Table */}
+            {/* Results Table or Empty State */}
             {result.results_count > 0 ? (
               <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/60 shadow">
                 <table className="w-full text-left border-collapse text-[11px] font-mono">
@@ -224,8 +262,19 @@ export const NLSearchPanel: React.FC<NLSearchPanelProps> = ({ onPinResultsToMap 
                 </table>
               </div>
             ) : (
-              <div className="p-4 rounded border border-slate-800 text-center text-xs text-slate-500 font-mono">
-                Query executed successfully with 0 matching rows.
+              <div className="p-6 rounded-xl border border-slate-800 bg-slate-950/40 text-center space-y-2">
+                <SearchX className="w-7 h-7 mx-auto text-slate-500" />
+                <h4 className="text-sm font-bold text-slate-200">No vehicle records found</h4>
+                <p className="text-xs text-slate-400 font-mono">
+                  No sightings are currently available for{' '}
+                  <span className="text-cyan-400 font-bold">
+                    {result.requested_plate || query || 'the requested query'}
+                  </span>
+                  .
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Please verify the registration number or try another search.
+                </p>
               </div>
             )}
           </div>

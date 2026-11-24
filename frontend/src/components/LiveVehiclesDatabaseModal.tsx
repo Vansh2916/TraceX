@@ -216,65 +216,81 @@ export const LiveVehiclesDatabaseModal: React.FC<LiveVehiclesDatabaseModalProps>
 
         {/* Table Content */}
         <div className="flex-1 overflow-y-auto rounded-2xl border border-slate-200 bg-white">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 sticky top-0 z-10 text-[11px] font-semibold">
-              <tr>
-                <th className="py-2.5 px-3">Plate</th>
-                <th className="py-2.5 px-3">Vehicle</th>
-                <th className="py-2.5 px-3">Speed</th>
-                <th className="py-2.5 px-3">Camera Station</th>
-                <th className="py-2.5 px-3">Corridor</th>
-                <th className="py-2.5 px-3">Timestamp</th>
-                <th className="py-2.5 px-3">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filtered.map((v) => (
-                <tr key={v.id} className="hover:bg-blue-50/50 transition">
-                  <td className="py-2 px-3 font-mono font-bold text-slate-900">
-                    <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
-                      {v.plate}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3">
-                    <span className="font-semibold text-slate-800">{v.car_model}</span>
-                    <span className="text-[10px] text-slate-400 block">{v.color} • {v.vehicle_type}</span>
-                  </td>
-                  <td className="py-2 px-3 font-mono">
-                    <span
-                      className={`font-bold px-2 py-0.5 rounded text-[10.5px] ${
-                        v.is_overspeed
-                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      }`}
-                    >
-                      {v.speed_kmh} km/h
-                    </span>
-                  </td>
-                  <td className="py-2 px-3 font-medium text-slate-800">
-                    {v.station_name}
-                  </td>
-                  <td className="py-2 px-3 text-slate-500 text-[11px]">
-                    {v.corridor}
-                  </td>
-                  <td className="py-2 px-3 font-mono text-slate-500 text-[10.5px]">
-                    {v.iso_time}
-                  </td>
-                  <td className="py-2 px-3">
-                    <button
-                      onClick={() => {
-                        onSelectPlate?.(v.plate);
-                        onClose();
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-[11px] transition"
-                    >
-                      Lock Radar
-                    </button>
-                  </td>
+          {filtered.length > 0 ? (
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 sticky top-0 z-10 text-[11px] font-semibold">
+                <tr>
+                  <th className="py-2.5 px-3">Plate</th>
+                  <th className="py-2.5 px-3">Vehicle</th>
+                  <th className="py-2.5 px-3">Speed</th>
+                  <th className="py-2.5 px-3">Camera Station</th>
+                  <th className="py-2.5 px-3">Corridor</th>
+                  <th className="py-2.5 px-3">Timestamp</th>
+                  <th className="py-2.5 px-3">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {filtered.map((v) => (
+                  <tr key={v.id} className="hover:bg-blue-50/50 transition">
+                    <td className="py-2 px-3 font-mono font-bold text-slate-900">
+                      <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
+                        {v.plate}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3">
+                      <span className="font-semibold text-slate-800">{v.car_model}</span>
+                      <span className="text-[10px] text-slate-400 block">{v.color} • {v.vehicle_type}</span>
+                    </td>
+                    <td className="py-2 px-3 font-mono">
+                      <span
+                        className={`font-bold px-2 py-0.5 rounded text-[10.5px] ${
+                          v.is_overspeed
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}
+                      >
+                        {v.speed_kmh} km/h
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 font-medium text-slate-800">
+                      {v.station_name}
+                    </td>
+                    <td className="py-2 px-3 text-slate-500 text-[11px]">
+                      {v.corridor}
+                    </td>
+                    <td className="py-2 px-3 font-mono text-slate-500 text-[10.5px]">
+                      {v.iso_time}
+                    </td>
+                    <td className="py-2 px-3">
+                      <button
+                        onClick={() => {
+                          onSelectPlate?.(v.plate);
+                          onClose();
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-[11px] transition"
+                      >
+                        Lock Radar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="py-16 text-center space-y-2 p-6">
+              <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                <Search className="w-6 h-6 text-slate-400" />
+              </div>
+              <h4 className="text-sm font-bold text-slate-800">No vehicle records found</h4>
+              <p className="text-xs text-slate-500 font-mono">
+                No sightings are currently available for{' '}
+                <span className="text-blue-600 font-bold">{searchQuery || 'the selected filters'}</span>.
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Please verify the registration number or try another search.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

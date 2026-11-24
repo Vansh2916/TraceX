@@ -163,7 +163,7 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
     },
   };
 
-  const curr = trajectoriesData[activePlate] || trajectoriesData.DL8CAF2381;
+  const curr = trajectoriesData[activePlate] || null;
 
   // 1. Initialize map once
   useEffect(() => {
@@ -216,6 +216,9 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
     const { routeLayer, checkpointsLayer } = layersRef.current;
     routeLayer.clearLayers();
     checkpointsLayer.clearLayers();
+
+    // If no records found for activePlate, don't invent a route or substitute another vehicle
+    if (!curr) return;
 
     const histPoints: [number, number][] = curr.checkpoints.map((c: any) => [c.lat, c.lon]);
 
@@ -396,123 +399,143 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
           {/* Map Top Floating Overlay */}
           <div className="absolute top-3 left-3 right-3 z-[400] flex items-center justify-between pointer-events-none">
             <div className="pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-700 text-white px-3.5 py-1.5 rounded-full text-xs font-mono font-bold flex items-center gap-2 shadow-lg">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-              <span>Target Locked: {activePlate}</span>
-              <span className="text-slate-400">({curr.vehicle})</span>
+              <span className={`w-2 h-2 rounded-full ${curr ? 'bg-cyan-400 animate-pulse' : 'bg-amber-400'}`} />
+              <span>{curr ? `Target Locked: ${activePlate}` : `Target: ${activePlate}`}</span>
+              {curr && <span className="text-slate-400">({curr.vehicle})</span>}
             </div>
 
-            <button
-              onClick={onOpenLiveFeed}
-              className="pointer-events-auto bg-blue-600/90 hover:bg-blue-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-lg transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
-            >
-              <Radio className="w-3.5 h-3.5 text-cyan-200 animate-pulse" />
-              <span>CCTV Intercept Feed</span>
-            </button>
+            {curr && (
+              <button
+                onClick={onOpenLiveFeed}
+                className="pointer-events-auto bg-blue-600/90 hover:bg-blue-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-lg transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Radio className="w-3.5 h-3.5 text-cyan-200 animate-pulse" />
+                <span>CCTV Intercept Feed</span>
+              </button>
+            )}
           </div>
         </div>
 
         {/* Right Telemetry & Checkpoints Panel */}
         <div className="col-span-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5 flex flex-col justify-between overflow-y-auto">
-          <div className="space-y-4">
-            {/* Header info */}
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                  Telemetry Dossier
-                </span>
-                <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                  {curr.status}
-                </span>
-              </div>
-              <h3 className="text-xl font-black text-slate-900 font-mono mt-1">{curr.plate}</h3>
-              <p className="text-xs text-slate-600 font-medium">{curr.vehicle}</p>
-            </div>
-
-            {/* Quick Metrics Grid */}
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                <span className="text-[9.5px] font-bold text-slate-400 uppercase block">Distance</span>
-                <span className="text-xs font-black text-slate-900 font-mono">{curr.totalDistance}</span>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                <span className="text-[9.5px] font-bold text-slate-400 uppercase block">Avg Speed</span>
-                <span className="text-xs font-black text-blue-600 font-mono">{curr.avgSpeed}</span>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                <span className="text-[9.5px] font-bold text-slate-400 uppercase block">Confidence</span>
-                <span className="text-xs font-black text-emerald-600 font-mono">{curr.confidence}</span>
-              </div>
-            </div>
-
-            {/* Checkpoints Timeline */}
-            <div>
-              <h4 className="text-xs font-bold text-slate-800 mb-2.5 flex items-center justify-between">
-                <span>Traversed Junctions ({curr.checkpoints.length})</span>
-                <span className="text-[10px] text-slate-400 font-mono">Real CCTV Logs</span>
-              </h4>
-
-              <div className="space-y-2 max-h-[190px] overflow-y-auto pr-1">
-                {curr.checkpoints.map((cp: any, idx: number) => (
-                  <div
-                    key={cp.id}
-                    className="p-2.5 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs transition"
-                  >
-                    <div className="flex items-center space-x-2.5">
-                      <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
-                        {idx + 1}
-                      </div>
-                      <div>
-                        <div className="font-bold text-slate-800 leading-tight">{cp.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                          {cp.time} • Speed: {cp.speed}
-                        </div>
-                      </div>
-                    </div>
-                    <span
-                      className={`text-[9.5px] font-mono font-bold px-2 py-0.5 rounded ${
-                        cp.status === 'GHOST_CLONE'
-                          ? 'bg-purple-100 text-purple-700'
-                          : cp.status === 'OVERSPEED'
-                          ? 'bg-rose-100 text-rose-700'
-                          : 'bg-emerald-100 text-emerald-700'
-                      }`}
-                    >
-                      {cp.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Projected Intercept Section */}
-            {curr.projected && (
-              <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
-                <div className="flex items-center space-x-1.5 text-amber-800 font-bold text-xs">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  <span>AI Projected Interception Point</span>
-                </div>
-                <div className="flex justify-between items-center mt-2">
-                  <div>
-                    <div className="font-bold text-slate-800 text-xs">{curr.projected.name}</div>
-                    <div className="text-[10px] font-mono text-amber-700 mt-0.5">
-                      Estimated Arrival: {curr.projected.eta}
-                    </div>
-                  </div>
-                  <span className="font-mono text-xs font-black text-amber-600 bg-white px-2 py-1 rounded-lg border border-amber-200 shadow-xs">
-                    {curr.projected.prob}
+          {curr ? (
+            <div className="space-y-4">
+              {/* Header info */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                    Telemetry Dossier
+                  </span>
+                  <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                    {curr.status}
                   </span>
                 </div>
+                <h3 className="text-xl font-black text-slate-900 font-mono mt-1">{curr.plate}</h3>
+                <p className="text-xs text-slate-600 font-medium">{curr.vehicle}</p>
               </div>
-            )}
-          </div>
 
-          <button
-            onClick={onOpenLiveFeed}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-sm transition active:scale-95 flex items-center justify-center space-x-2 cursor-pointer mt-3"
-          >
-            <Radio className="w-3.5 h-3.5 animate-pulse" />
-            <span>Launch Consecutive Camera Tracking Feed</span>
-          </button>
+              {/* Quick Metrics Grid */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[9.5px] font-bold text-slate-400 uppercase block">Distance</span>
+                  <span className="text-xs font-black text-slate-900 font-mono">{curr.totalDistance}</span>
+                </div>
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[9.5px] font-bold text-slate-400 uppercase block">Avg Speed</span>
+                  <span className="text-xs font-black text-blue-600 font-mono">{curr.avgSpeed}</span>
+                </div>
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[9.5px] font-bold text-slate-400 uppercase block">Confidence</span>
+                  <span className="text-xs font-black text-emerald-600 font-mono">{curr.confidence}</span>
+                </div>
+              </div>
+
+              {/* Checkpoints Timeline */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 mb-2.5 flex items-center justify-between">
+                  <span>Traversed Junctions ({curr.checkpoints.length})</span>
+                  <span className="text-[10px] text-slate-400 font-mono">Real CCTV Logs</span>
+                </h4>
+
+                <div className="space-y-2 max-h-[190px] overflow-y-auto pr-1">
+                  {curr.checkpoints.map((cp: any, idx: number) => (
+                    <div
+                      key={cp.id}
+                      className="p-2.5 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs transition"
+                    >
+                      <div className="flex items-center space-x-2.5">
+                        <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-800 leading-tight">{cp.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            {cp.time} • Speed: {cp.speed}
+                          </div>
+                        </div>
+                      </div>
+                      <span
+                        className={`text-[9.5px] font-mono font-bold px-2 py-0.5 rounded ${
+                          cp.status === 'GHOST_CLONE'
+                            ? 'bg-purple-100 text-purple-700'
+                            : cp.status === 'OVERSPEED'
+                            ? 'bg-rose-100 text-rose-700'
+                            : 'bg-emerald-100 text-emerald-700'
+                        }`}
+                      >
+                        {cp.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Projected Intercept Section */}
+              {curr.projected && (
+                <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
+                  <div className="flex items-center space-x-1.5 text-amber-800 font-bold text-xs">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>AI Projected Interception Point</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <div>
+                      <div className="font-bold text-slate-800 text-xs">{curr.projected.name}</div>
+                      <div className="text-[10px] font-mono text-amber-700 mt-0.5">
+                        Estimated Arrival: {curr.projected.eta}
+                      </div>
+                    </div>
+                    <span className="font-mono text-xs font-black text-amber-600 bg-white px-2 py-1 rounded-lg border border-amber-200 shadow-xs">
+                      {curr.projected.prob}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={onOpenLiveFeed}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-sm transition active:scale-95 flex items-center justify-center space-x-2 cursor-pointer mt-3"
+              >
+                <Radio className="w-3.5 h-3.5 animate-pulse" />
+                <span>Launch Consecutive Camera Tracking Feed</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shadow-xs">
+                <Search className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-base font-bold text-slate-800">No vehicle records found</h4>
+                <p className="text-xs text-slate-600 font-mono">
+                  No sightings are currently available for{' '}
+                  <span className="text-rose-600 font-bold">{activePlate}</span>.
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Please verify the registration number or try another search.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
