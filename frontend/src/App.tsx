@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Sighting, Alert } from './types';
 import { MOCK_CAMERAS, MOCK_ALERTS } from './data/mockData';
+import { safeFetchJson, getWsUrl } from './services/apiClient';
 import { CommanderSidebar } from './components/CommanderSidebar';
 import { CommanderHeader } from './components/CommanderHeader';
 import { MetricCardsRow } from './components/MetricCardsRow';
@@ -117,20 +118,27 @@ export const App: React.FC = () => {
     const fetchBase = async () => {
       try {
         const [cRes, sRes, aRes] = await Promise.all([
-          fetch('/api/cameras'),
-          fetch('/api/sightings?limit=60'),
-          fetch('/api/alerts?limit=30'),
+          safeFetchJson<{ cameras: Camera[] }>('/api/cameras'),
+          safeFetchJson<{ sightings: Sighting[] }>('/api/sightings?limit=60'),
+          safeFetchJson<{ alerts: Alert[] }>('/api/alerts?limit=30'),
         ]);
-        if (!cRes.ok && !sRes.ok && !aRes.ok) {
-          throw new Error('API response failed');
-        }
-        const cData = await cRes.json();
-        const sData = await sRes.json();
-        const aData = await aRes.json();
 
-        setCameras(cData.cameras && cData.cameras.length > 0 ? cData.cameras : MOCK_CAMERAS);
-        setSightings(sData.sightings || []);
-        setAlerts(aData.alerts && aData.alerts.length > 0 ? aData.alerts : MOCK_ALERTS);
+        const hasValidBackendResponse =
+          (cRes.success && !cRes.isHtmlFallback) ||
+          (sRes.success && !sRes.isHtmlFallback) ||
+          (aRes.success && !aRes.isHtmlFallback);
+
+        if (!hasValidBackendResponse) {
+          throw new Error('API returned HTML fallback or backend unreachable');
+        }
+
+        const cData = cRes.data;
+        const sData = sRes.data;
+        const aData = aRes.data;
+
+        setCameras(cData?.cameras && cData.cameras.length > 0 ? cData.cameras : MOCK_CAMERAS);
+        setSightings(sData?.sightings || []);
+        setAlerts(aData?.alerts && aData.alerts.length > 0 ? aData.alerts : MOCK_ALERTS);
         setIsBackendHealthy(true);
         setLastSyncedAt(new Date());
       } catch (err) {
@@ -145,14 +153,16 @@ export const App: React.FC = () => {
 
   // Connect WebSocket
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = getWsUrl('/ws');
 
     const connectWs = () => {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+      try {
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
 
-      ws.onopen = () => setWsConnected(true);
+        ws.onopen = () => setWsConnected(true);
+        ws.onclose = () => setWsConnected(false);
+        ws.onerror = () => setWsConnected(false);
 
       ws.onmessage = (event) => {
         try {
@@ -185,7 +195,11 @@ export const App: React.FC = () => {
       };
 
       ws.onerror = () => ws.close();
-    };
+    } catch (err) {
+      console.warn('WS connection failed', err);
+      setWsConnected(false);
+    }
+  };
 
     connectWs();
     return () => {
@@ -198,17 +212,19 @@ export const App: React.FC = () => {
     setActiveNav('trajectories');
   };
 
-  // Operational State calculation (Requirement 2: LIVE, DEMO, DEGRADED, OFFLINE)
+  // Operational State calculation (Requirement 2: LIVE, DEMO, DEGRADED, OFFLINE, CONNECTING)
   const isStale = lastSyncedAt ? (Date.now() - lastSyncedAt.getTime()) > 120000 : false;
-  let operationalState: 'live' | 'demo' | 'degraded' | 'offline' = 'demo';
-  if (isBackendHealthy === false) {
+  let operationalState: 'connecting' | 'live' | 'demo' | 'degraded' | 'offline' = 'connecting';
+  if (isBackendHealthy === null) {
+    operationalState = 'connecting';
+  } else if (isBackendHealthy === false) {
     operationalState = 'demo';
-  } else if (!isBackendHealthy && !wsConnected && !lastSyncedAt) {
-    operationalState = 'offline';
   } else if (wsConnected && !isStale) {
     operationalState = 'live';
-  } else if (isBackendHealthy || wsConnected || isStale) {
+  } else if (isBackendHealthy || wsConnected) {
     operationalState = 'degraded';
+  } else {
+    operationalState = 'offline';
   }
 
   return (
@@ -233,6 +249,7 @@ export const App: React.FC = () => {
           onOpenNotifications={() => setIsNotificationsOpen(!isNotificationsOpen)}
           alertCount={alerts.length || 3}
           isLive={wsConnected}
+          systemState={operationalState}
           isAudioEnabled={isAudioEnabled}
           onToggleAudio={() => setIsAudioEnabled(!isAudioEnabled)}
           onOpenCitizenPWA={() => setIsCitizenPWAOpen(true)}

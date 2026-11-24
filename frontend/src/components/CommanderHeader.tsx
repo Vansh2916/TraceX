@@ -12,7 +12,8 @@ interface CommanderHeaderProps {
   onSearchPlate: (plate: string) => void;
   onOpenNotifications: () => void;
   alertCount: number;
-  isLive: boolean;
+  isLive?: boolean;
+  systemState?: 'connecting' | 'live' | 'demo' | 'degraded' | 'offline';
   isAudioEnabled?: boolean;
   onToggleAudio?: () => void;
   onOpenCitizenPWA?: () => void;
@@ -22,12 +23,16 @@ export const CommanderHeader: React.FC<CommanderHeaderProps> = ({
   onSearchPlate,
   onOpenNotifications,
   alertCount,
-  isLive,
+  isLive = false,
+  systemState,
   isAudioEnabled = true,
   onToggleAudio,
   onOpenCitizenPWA,
 }) => {
   const [searchInput, setSearchInput] = useState('');
+
+  // Determine effective state
+  const effectiveState = systemState || (isLive ? 'live' : 'connecting');
 
   // Keyboard shortcut ⌘ K or Ctrl K
   useEffect(() => {
@@ -116,13 +121,47 @@ export const CommanderHeader: React.FC<CommanderHeaderProps> = ({
           </button>
         )}
 
-        {/* Live WebSocket Status Indicator */}
-        <div className="flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200/80 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs whitespace-nowrap">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[11px] font-mono tracking-wider font-bold">
-            {isLive ? 'NETWORK LIVE' : 'CONNECTING...'}
-          </span>
-        </div>
+        {/* Operational Status Indicator */}
+        {effectiveState === 'live' && (
+          <div className="flex items-center space-x-1.5 bg-emerald-50 border border-emerald-300 text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs whitespace-nowrap">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[11px] font-mono tracking-wider font-bold">
+              LIVE TELEMETRY
+            </span>
+          </div>
+        )}
+        {effectiveState === 'demo' && (
+          <div className="flex items-center space-x-1.5 bg-amber-50 border border-amber-300 text-amber-700 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs whitespace-nowrap">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span className="text-[11px] font-mono tracking-wider font-bold">
+              DEMO (SYNTHETIC)
+            </span>
+          </div>
+        )}
+        {effectiveState === 'degraded' && (
+          <div className="flex items-center space-x-1.5 bg-yellow-50 border border-yellow-300 text-yellow-800 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs whitespace-nowrap">
+            <span className="w-2 h-2 rounded-full bg-yellow-500" />
+            <span className="text-[11px] font-mono tracking-wider font-bold">
+              DEGRADED FEED
+            </span>
+          </div>
+        )}
+        {effectiveState === 'offline' && (
+          <div className="flex items-center space-x-1.5 bg-rose-50 border border-rose-300 text-rose-700 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs whitespace-nowrap">
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span className="text-[11px] font-mono tracking-wider font-bold">
+              OFFLINE
+            </span>
+          </div>
+        )}
+        {effectiveState === 'connecting' && (
+          <div className="flex items-center space-x-1.5 bg-sky-50 border border-sky-300 text-sky-700 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs whitespace-nowrap">
+            <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
+            <span className="text-[11px] font-mono tracking-wider font-bold">
+              CONNECTING...
+            </span>
+          </div>
+        )}
 
         {/* Priority Notifications Bell */}
         <button

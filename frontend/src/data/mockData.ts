@@ -64,9 +64,9 @@ export const MOCK_LIVE_VEHICLES = [
     speed_kmh: 42.5,
     speed_limit: 50.0,
     is_overspeed: 0,
-    station_id: 'CAM_07',
-    station_name: 'Rajpath Rd',
-    corridor: 'Connaught Place - India Gate Corridor',
+    station_id: 'CAM_02',
+    station_name: 'Rajpath Rd / Kartavya Path',
+    corridor: 'Central Vista Corridor',
     timestamp_sec: 174215,
     iso_time: '2026-11-21T17:42:15Z',
     confidence: 0.987,
@@ -117,7 +117,7 @@ export const MOCK_LIVE_VEHICLES = [
     color: 'Grey',
     speed_kmh: 51.5,
     speed_limit: 50.0,
-    is_overspeed: 0,
+    is_overspeed: 1,
     station_id: 'CAM_02',
     station_name: 'India Gate C-Hexagon',
     corridor: 'Kartavya Path Corridor',
@@ -143,6 +143,24 @@ export const MOCK_LIVE_VEHICLES = [
     iso_time: '2026-11-21T17:28:00Z',
     confidence: 0.948,
     detection_engine: 'YOLOv8x-ANPR + OCR',
-    flags: 'OVERSPEED_WARNING'
+    flags: 'TRACKED'
+  },
+  {
+    id: 6,
+    plate: 'DL1CAB1100',
+    car_model: 'Toyota Fortuner',
+    vehicle_type: 'SUV',
+    color: 'White',
+    speed_kmh: 64.0,
+    speed_limit: 70.0,
+    is_overspeed: 0,
+    station_id: 'CAM_07',
+    station_name: 'IGI Airport T3 Terminal',
+    corridor: 'Airport Access Expressway',
+    timestamp_sec: 174500,
+    iso_time: '2026-11-21T17:45:00Z',
+    confidence: 0.98,
+    detection_engine: 'YOLOv8x-ANPR + OCR',
+    flags: 'TRACKED'
   }
 ];

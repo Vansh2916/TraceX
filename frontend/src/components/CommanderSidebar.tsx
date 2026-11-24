@@ -16,7 +16,7 @@ interface CommanderSidebarProps {
   activeNav: string;
   onSelectNav: (nav: string) => void;
   onOpenConsecutiveTracker: () => void;
-  feedStatus?: 'live' | 'demo' | 'degraded' | 'offline';
+  feedStatus?: 'live' | 'demo' | 'degraded' | 'offline' | 'connecting';
   lastSyncedAt?: Date | null;
 }
 
@@ -107,6 +107,11 @@ export const CommanderSidebar: React.FC<CommanderSidebarProps> = ({
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono bg-yellow-50 text-yellow-800 border border-yellow-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mr-1" />
                 DEGRADED
+              </span>
+            ) : feedStatus === 'connecting' ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono bg-sky-50 text-sky-700 border border-sky-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse mr-1" />
+                CONNECTING
               </span>
             ) : (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono bg-rose-50 text-rose-700 border border-rose-300">
