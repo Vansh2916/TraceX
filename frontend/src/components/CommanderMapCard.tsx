@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Camera } from '../types';
 import { ChevronDown, Crosshair, Plus, Minus, Video, ShieldAlert, Sparkles, Navigation } from 'lucide-react';
+import { getGoogleTileUrl, GOOGLE_TILE_OPTIONS } from '../utils/mapConfig';
 
 interface CommanderMapCardProps {
   cameras: Camera[];
@@ -40,12 +41,12 @@ export const CommanderMapCard: React.FC<CommanderMapCardProps> = ({
     });
     mapInstanceRef.current = map;
 
-    // High-Resolution CartoDB Dark Matter / Satellite
+    // High-Resolution Google Maps Dark Tactical Radar with user API key
     L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      getGoogleTileUrl('m'),
       {
-        maxZoom: 19,
-        subdomains: 'abcd',
+        ...GOOGLE_TILE_OPTIONS,
+        className: 'dark-tactical-tiles',
       }
     ).addTo(map);
 

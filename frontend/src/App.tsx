@@ -191,11 +191,8 @@ export const App: React.FC = () => {
         activeNav={activeNav}
         onSelectNav={(nav) => {
           setActiveNav(nav);
-          if (nav === 'vehicle_search') {
-            setIsLiveVehiclesDBOpen(true);
-          }
+          setIsLiveVehiclesDBOpen(nav === 'vehicle_search');
         }}
-        onOpenLiveVehiclesDB={() => setIsLiveVehiclesDBOpen(true)}
         onOpenConsecutiveTracker={() => setIsConsecutiveTrackerOpen(true)}
         feedStatus={wsConnected ? 'live' : (isBackendHealthy === false ? 'demo' : 'offline')}
         lastSyncedAt={lastSyncedAt}
@@ -333,19 +330,6 @@ export const App: React.FC = () => {
           <SettingsView />
         )}
 
-        {/* Vehicle Search View */}
-        {activeNav === 'vehicle_search' && (
-          <div className="flex-1 p-6">
-            <LiveVehiclesDatabaseModal
-              isOpen={true}
-              onClose={() => setActiveNav('overview')}
-              onSelectPlate={(plate) => {
-                setSelectedPlate(plate);
-                setActiveNav('trajectories');
-              }}
-            />
-          </div>
-        )}
       </div>
 
       {/* Floating Real-time Toast Notifications Container */}
@@ -423,7 +407,10 @@ export const App: React.FC = () => {
       {/* Vehicle Sightings Modal */}
       <LiveVehiclesDatabaseModal
         isOpen={isLiveVehiclesDBOpen}
-        onClose={() => setIsLiveVehiclesDBOpen(false)}
+        onClose={() => {
+          setIsLiveVehiclesDBOpen(false);
+          setActiveNav((currentNav) => currentNav === 'vehicle_search' ? 'overview' : currentNav);
+        }}
         onSelectPlate={(plate) => {
           setSelectedPlate(plate);
           setActiveNav('trajectories');

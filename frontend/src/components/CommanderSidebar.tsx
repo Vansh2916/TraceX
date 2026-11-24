@@ -15,7 +15,6 @@ import {
 interface CommanderSidebarProps {
   activeNav: string;
   onSelectNav: (nav: string) => void;
-  onOpenLiveVehiclesDB: () => void;
   onOpenConsecutiveTracker: () => void;
   feedStatus?: 'live' | 'demo' | 'offline';
   lastSyncedAt?: Date | null;
@@ -24,7 +23,6 @@ interface CommanderSidebarProps {
 export const CommanderSidebar: React.FC<CommanderSidebarProps> = ({
   activeNav,
   onSelectNav,
-  onOpenLiveVehiclesDB,
   onOpenConsecutiveTracker,
   feedStatus = 'demo',
   lastSyncedAt = null,
