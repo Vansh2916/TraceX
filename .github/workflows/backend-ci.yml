@@ -28,7 +28,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi uvicorn networkx pydantic httpx pytest pytest-asyncio
+          pip install fastapi uvicorn networkx pydantic httpx pytest pytest-asyncio requests pillow python-multipart
       - name: Run Pytest
+        env:
+          PYTHONPATH: ..
         run: |
           pytest -v

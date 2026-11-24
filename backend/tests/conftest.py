@@ -1,6 +1,17 @@
 """
 Pytest configuration and test fixtures for TraceX Backend.
 """
+import sys
+from pathlib import Path
+
+# Ensure repo root and backend directory are in sys.path so both
+# `import backend.xyz` and `import xyz` resolve regardless of invocation directory
+root_dir = Path(__file__).resolve().parent.parent.parent
+backend_dir = Path(__file__).resolve().parent.parent
+for d in (str(root_dir), str(backend_dir)):
+    if d not in sys.path:
+        sys.path.insert(0, d)
+
 import pytest
 import sqlite3
 import os
