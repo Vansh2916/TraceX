@@ -19,22 +19,17 @@ export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
   onExecuteQuery,
 }) => {
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<AssistantMessage[]>([
-    {
-      id: 'init-1',
-      sender: 'user',
-      text: 'Show sightings for DL 1C AA 9999',
-    },
-    {
-      id: 'init-2',
-      sender: 'ai',
-      text: 'Vehicle DL 1C AA 9999 logged at Lajpat Nagar Flyover (CAM_10). Moving within speed limit.',
-      found: true,
-      requestedPlate: 'DL 1C AA 9999',
-    },
-  ]);
+  const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const activeRequestIdRef = useRef<number>(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const exampleQuestion = 'Where was DL8CAF2381 last seen?';
+
+  const handleSelectExample = (q: string) => {
+    setInput(q);
+    inputRef.current?.focus();
+  };
 
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -130,8 +125,22 @@ export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
         </div>
       </div>
 
-      {/* Chat Messages */}
+      {/* Chat Messages / Empty State */}
       <div className="space-y-1.5 overflow-y-auto max-h-[92px] pr-1 py-1 text-[10.5px]">
+        {messages.length === 0 && !loading && (
+          <div className="py-2.5 px-1 flex flex-col items-start space-y-1.5">
+            <span className="text-[10px] text-slate-400 font-medium">Try asking:</span>
+            <button
+              type="button"
+              onClick={() => handleSelectExample(exampleQuestion)}
+              className="text-left px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-indigo-50/80 border border-slate-200/90 hover:border-indigo-200 text-indigo-700 text-[10.5px] font-medium transition cursor-pointer flex items-center space-x-1.5 group"
+            >
+              <Sparkles className="w-3 h-3 text-indigo-500 shrink-0 group-hover:scale-110 transition-transform" />
+              <span className="truncate">"{exampleQuestion}"</span>
+            </button>
+          </div>
+        )}
+
         {messages.map((m) => (
           <div
             key={m.id}
@@ -175,6 +184,7 @@ export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
       {/* Input Form */}
       <form onSubmit={handleSend} className="relative flex items-center">
         <input
+          ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}

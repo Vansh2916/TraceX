@@ -118,10 +118,10 @@ export const TopBar: React.FC<TopBarProps> = ({
           <button
             onClick={onOpenLiveVehiclesDB}
             className="px-2.5 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/80 text-xs font-mono font-bold flex items-center space-x-1.5 transition active:scale-95 shadow-md shadow-emerald-950/60"
-            title="Inspect Live Streaming Vehicles Database"
+            title="Inspect Vehicle Sightings"
           >
             <Database className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">📊 VEHICLES DB</span>
+            <span className="hidden sm:inline">📊 VEHICLE SIGHTINGS</span>
           </button>
         )}
 

@@ -139,7 +139,7 @@ export const LiveVehiclesDatabaseModal: React.FC<LiveVehiclesDatabaseModalProps>
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="text-[16px] font-bold text-slate-800 tracking-tight">
-                  Passing Live Streaming Vehicles Database (SQLite)
+                  Vehicle Sightings
                 </h3>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
                   {vehicles.length} LOGGED

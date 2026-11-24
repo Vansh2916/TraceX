@@ -430,13 +430,21 @@ export const CameraNetworkView: React.FC<CameraNetworkViewProps> = ({ cameras, o
 
                   {/* Top HUD: Live Ticker & Codec */}
                   <div className="absolute top-2 left-2 right-2 flex items-center justify-between text-[9px] font-mono pointer-events-none">
-                    <div className="bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded text-emerald-400 border border-emerald-500/40 flex items-center space-x-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      <span>LIVE {meta.res.split(' ')[0]}</span>
-                    </div>
-                    <div className="bg-black/75 backdrop-blur-xs px-1.5 py-0.5 rounded text-slate-300">
-                      {meta.fps} FPS
-                    </div>
+                    {(cam as any).is_live ? (
+                      <>
+                        <div className="bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded text-emerald-400 border border-emerald-500/40 flex items-center space-x-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>LIVE {meta.res.split(' ')[0]}</span>
+                        </div>
+                        <div className="bg-black/75 backdrop-blur-xs px-1.5 py-0.5 rounded text-slate-300">
+                          {meta.fps} FPS
+                        </div>
+                      </>
+                    ) : (
+                      <div className="bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded text-slate-300 border border-slate-700/60 flex items-center space-x-1">
+                        <span>Preview</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* AI Optical Bounding Box & Plate Tag Overlay */}
@@ -497,13 +505,21 @@ export const CameraNetworkView: React.FC<CameraNetworkViewProps> = ({ cameras, o
 
                   {/* Quad Top HUD */}
                   <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between text-[10px] font-mono pointer-events-none">
-                    <div className="bg-black/80 backdrop-blur-xs px-2.5 py-1 rounded text-emerald-400 border border-emerald-500/40 flex items-center space-x-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                      <span className="font-bold">{cam.id} • LIVE {meta.res}</span>
-                    </div>
-                    <div className="bg-black/80 px-2 py-1 rounded text-slate-200">
-                      RTSP: {meta.bitrate} @ {meta.fps} FPS
-                    </div>
+                    {(cam as any).is_live ? (
+                      <>
+                        <div className="bg-black/80 backdrop-blur-xs px-2.5 py-1 rounded text-emerald-400 border border-emerald-500/40 flex items-center space-x-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                          <span className="font-bold">{cam.id} • LIVE {meta.res}</span>
+                        </div>
+                        <div className="bg-black/80 px-2 py-1 rounded text-slate-200">
+                          RTSP: {meta.bitrate} @ {meta.fps} FPS
+                        </div>
+                      </>
+                    ) : (
+                      <div className="bg-black/80 backdrop-blur-xs px-2.5 py-1 rounded text-slate-300 border border-slate-700/60 flex items-center space-x-1.5">
+                        <span className="font-bold">{cam.id} • Preview</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* AI Scanner */}

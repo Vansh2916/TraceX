@@ -65,12 +65,8 @@ export const CameraFeedsCard: React.FC<CameraFeedsCardProps> = ({ onOpenFeed }) 
                 playsInline
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />
-              <div className="absolute top-1 left-1 bg-black/75 backdrop-blur-xs text-[8px] font-mono text-emerald-400 px-1 py-0.5 rounded flex items-center space-x-1">
-                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-                <span>LIVE</span>
-              </div>
-              <div className="absolute bottom-1 right-1 bg-black/80 text-[7.5px] font-mono text-slate-300 px-1 rounded">
-                25 FPS
+              <div className="absolute top-1 left-1 bg-black/75 backdrop-blur-xs text-[8px] font-mono text-slate-300 px-1 py-0.5 rounded flex items-center space-x-1 border border-slate-700/50">
+                <span>Preview</span>
               </div>
             </div>
 

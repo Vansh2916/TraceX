@@ -267,7 +267,7 @@ export const AlibiView: React.FC = () => {
               </div>
 
               {/* Numerical Metrics */}
-              <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="grid grid-cols-2 gap-3 text-center">
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                   <span className="text-[9.5px] font-bold uppercase text-slate-400 block font-mono">
                     Min Transit Time
@@ -287,12 +287,6 @@ export const AlibiView: React.FC = () => {
                   >
                     {currentCase.reportedDeltaMinutes} min
                   </span>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-[9.5px] font-bold uppercase text-slate-400 block font-mono">
-                    Calculation Match
-                  </span>
-                  <span className="text-sm font-black text-emerald-600 font-mono">99.8%</span>
                 </div>
               </div>
             </div>

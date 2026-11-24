@@ -17,6 +17,8 @@ interface CommanderSidebarProps {
   onSelectNav: (nav: string) => void;
   onOpenLiveVehiclesDB: () => void;
   onOpenConsecutiveTracker: () => void;
+  feedStatus?: 'live' | 'demo' | 'offline';
+  lastSyncedAt?: Date | null;
 }
 
 export const CommanderSidebar: React.FC<CommanderSidebarProps> = ({
@@ -24,6 +26,8 @@ export const CommanderSidebar: React.FC<CommanderSidebarProps> = ({
   onSelectNav,
   onOpenLiveVehiclesDB,
   onOpenConsecutiveTracker,
+  feedStatus = 'demo',
+  lastSyncedAt = null,
 }) => {
   const navItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -87,26 +91,37 @@ export const CommanderSidebar: React.FC<CommanderSidebarProps> = ({
         </nav>
       </div>
 
-      {/* Bottom India Gate Banner */}
+      {/* Bottom Feed Status Panel */}
       <div className="p-3">
-        <div className="relative rounded-xl overflow-hidden shadow-sm h-32 flex flex-col justify-end p-3 border border-slate-200/60 group">
-          <img
-            src="/mockup_assets/sidebar_indiagate_banner.jpg"
-            alt="India Gate"
-            className="absolute inset-0 w-full h-full object-cover brightness-[0.7] contrast-125 group-hover:scale-105 transition-transform duration-500"
-            onError={(e) => {
-              // fallback gradient if image not ready
-              (e.target as HTMLElement).style.display = 'none';
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
-          <div className="relative z-10">
-            <h4 className="text-[11.5px] font-bold text-white tracking-tight leading-snug drop-shadow">
-              Smarter Surveillance.
-            </h4>
-            <p className="text-[10px] font-medium text-slate-300 drop-shadow">
-              Safer Tomorrow.
-            </p>
+        <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-3 space-y-2 shadow-xs font-sans">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Feed Status</span>
+            {feedStatus === 'live' ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono bg-emerald-50 text-emerald-700 border border-emerald-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mr-1" />
+                Live
+              </span>
+            ) : feedStatus === 'demo' ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono bg-amber-50 text-amber-700 border border-amber-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1" />
+                Demo
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono bg-rose-50 text-rose-700 border border-rose-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1" />
+                Offline
+              </span>
+            )}
+          </div>
+          <div className="text-[10.5px] text-slate-500 font-mono flex items-center justify-between pt-0.5 border-t border-slate-200/60">
+            <span>Sync:</span>
+            <span className="text-slate-700 font-medium">
+              {lastSyncedAt ? (
+                `Last synced ${lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+              ) : (
+                'Awaiting first sync.'
+              )}
+            </span>
           </div>
         </div>
       </div>

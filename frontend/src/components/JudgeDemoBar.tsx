@@ -76,7 +76,7 @@ export const JudgeDemoBar: React.FC<JudgeDemoBarProps> = ({
               className="px-2.5 py-1 rounded bg-emerald-950/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-500/80 text-[11px] font-mono font-bold flex items-center space-x-1.5 transition active:scale-95 shadow-md"
             >
               <Database className="w-3.5 h-3.5 text-emerald-400" />
-              <span>📊 Passing Vehicles DB</span>
+              <span>📊 Vehicle Sightings</span>
             </button>
           )}
 

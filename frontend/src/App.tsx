@@ -54,6 +54,8 @@ export const App: React.FC = () => {
 
   // WebSocket state
   const [wsConnected, setWsConnected] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [isBackendHealthy, setIsBackendHealthy] = useState<boolean | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   // Tactical Audio Synth (Web Audio API)
@@ -113,6 +115,9 @@ export const App: React.FC = () => {
           fetch('/api/sightings?limit=60'),
           fetch('/api/alerts?limit=30'),
         ]);
+        if (!cRes.ok && !sRes.ok && !aRes.ok) {
+          throw new Error('API response failed');
+        }
         const cData = await cRes.json();
         const sData = await sRes.json();
         const aData = await aRes.json();
@@ -120,10 +125,13 @@ export const App: React.FC = () => {
         setCameras(cData.cameras && cData.cameras.length > 0 ? cData.cameras : MOCK_CAMERAS);
         setSightings(sData.sightings || []);
         setAlerts(aData.alerts && aData.alerts.length > 0 ? aData.alerts : MOCK_ALERTS);
+        setIsBackendHealthy(true);
+        setLastSyncedAt(new Date());
       } catch (err) {
         console.warn('Backend API unavailable, using mock data:', err);
         setCameras(MOCK_CAMERAS);
         setAlerts(MOCK_ALERTS);
+        setIsBackendHealthy(false);
       }
     };
     fetchBase();
@@ -147,8 +155,10 @@ export const App: React.FC = () => {
             if (msg.cameras) setCameras(msg.cameras);
             if (msg.recent_sightings) setSightings(msg.recent_sightings);
             if (msg.recent_alerts) setAlerts(msg.recent_alerts);
+            setLastSyncedAt(new Date());
           } else if (msg.type === 'NEW_SIGHTING') {
             setSightings((prev) => [msg.data, ...prev.slice(0, 100)]);
+            setLastSyncedAt(new Date());
             if (msg.alerts && msg.alerts.length > 0) {
               setAlerts((prev) => [...msg.alerts, ...prev]);
               addToast(
@@ -271,6 +281,8 @@ export const App: React.FC = () => {
         }}
         onOpenLiveVehiclesDB={() => setIsLiveVehiclesDBOpen(true)}
         onOpenConsecutiveTracker={() => setIsConsecutiveTrackerOpen(true)}
+        feedStatus={wsConnected ? 'live' : (isBackendHealthy === false ? 'demo' : 'offline')}
+        lastSyncedAt={lastSyncedAt}
       />
 
       {/* 2. Main Canvas */}
@@ -499,7 +511,7 @@ export const App: React.FC = () => {
               }}
               className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer mt-4"
             >
-              Open Live Vehicles Database
+              Open Vehicle Sightings
             </button>
           </div>
         </div>
@@ -511,7 +523,7 @@ export const App: React.FC = () => {
         onClose={() => setIsConsecutiveTrackerOpen(false)}
       />
 
-      {/* Passing Live Streaming Vehicles SQLite Database Modal */}
+      {/* Vehicle Sightings Modal */}
       <LiveVehiclesDatabaseModal
         isOpen={isLiveVehiclesDBOpen}
         onClose={() => setIsLiveVehiclesDBOpen(false)}
