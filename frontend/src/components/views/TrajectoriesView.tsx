@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Camera } from '../../types';
+import { getGoogleTileUrl, GOOGLE_TILE_OPTIONS } from '../../utils/mapConfig';
 import {
   Route,
   Navigation,
@@ -178,12 +179,12 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({
     });
     mapInstanceRef.current = map;
 
-    // CartoDB Dark Matter
+    // Google Maps Dark Tactical Radar with user API key
     L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      getGoogleTileUrl('m'),
       {
-        maxZoom: 19,
-        subdomains: 'abcd',
+        ...GOOGLE_TILE_OPTIONS,
+        className: 'dark-tactical-tiles',
       }
     ).addTo(map);
 

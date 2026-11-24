@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { Layers, Key, Check, X, MapPin } from 'lucide-react';
 import { Camera, NetworkEdge, Sighting, Alert, PCRUnit } from '../types';
+import { GOOGLE_MAPS_API_KEY, getGoogleTileUrl, GOOGLE_TILE_OPTIONS } from '../utils/mapConfig';
 
 interface MapComponentProps {
   cameras: Camera[];
@@ -49,35 +50,29 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     }
 
     let layer: L.TileLayer;
-    const cleanKey = key.trim();
+    const cleanKey = (key || GOOGLE_MAPS_API_KEY).trim();
 
     if (prov === 'GOOGLE_DARK') {
-      const url = `https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}${cleanKey ? `&key=${cleanKey}` : ''}`;
+      const url = getGoogleTileUrl('m', cleanKey);
       layer = L.tileLayer(url, {
-        maxZoom: 20,
-        subdomains: '0123',
+        ...GOOGLE_TILE_OPTIONS,
         className: 'dark-tactical-tiles',
-        attribution: '© Google Maps',
       });
     } else if (prov === 'GOOGLE_HYBRID' || prov === 'GOOGLE_MAPS') {
-      const url = `https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}${cleanKey ? `&key=${cleanKey}` : ''}`;
+      const url = getGoogleTileUrl('y', cleanKey);
       layer = L.tileLayer(url, {
-        maxZoom: 20,
-        subdomains: '0123',
+        ...GOOGLE_TILE_OPTIONS,
         attribution: '© Google Maps Satellite',
       });
     } else if (prov === 'GOOGLE_ROADMAP') {
-      const url = `https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}${cleanKey ? `&key=${cleanKey}` : ''}`;
+      const url = getGoogleTileUrl('m', cleanKey);
       layer = L.tileLayer(url, {
-        maxZoom: 20,
-        subdomains: '0123',
-        attribution: '© Google Maps',
+        ...GOOGLE_TILE_OPTIONS,
       });
     } else if (prov === 'GOOGLE_TERRAIN') {
-      const url = `https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}${cleanKey ? `&key=${cleanKey}` : ''}`;
+      const url = getGoogleTileUrl('p', cleanKey);
       layer = L.tileLayer(url, {
-        maxZoom: 20,
-        subdomains: '0123',
+        ...GOOGLE_TILE_OPTIONS,
         attribution: '© Google Maps Terrain',
       });
     } else if (prov === 'MAPBOX' && cleanKey) {
@@ -138,7 +133,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
     // Default to Google Maps Dark, migrating away from unkeyed CARTO
     let storedProv = localStorage.getItem('crusaders_map_provider');
-    const storedKey = localStorage.getItem('crusaders_map_key') || '';
+    const storedKey = localStorage.getItem('crusaders_map_key') || GOOGLE_MAPS_API_KEY;
     if (!storedProv || (storedProv === 'CARTO' && !storedKey)) {
       storedProv = 'GOOGLE_DARK';
       localStorage.setItem('crusaders_map_provider', 'GOOGLE_DARK');

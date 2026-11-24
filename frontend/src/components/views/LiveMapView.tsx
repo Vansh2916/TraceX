@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Camera, PCRUnit } from '../../types';
+import { getGoogleTileUrl, GOOGLE_TILE_OPTIONS } from '../../utils/mapConfig';
 import {
   MapPin,
   Video,
@@ -55,12 +56,12 @@ export const LiveMapView: React.FC<LiveMapViewProps> = ({ cameras, onOpenFeed })
     });
     mapInstanceRef.current = map;
 
-    // CartoDB Dark Matter Base
+    // Google Maps Dark Tactical Radar Base with user API key
     L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      getGoogleTileUrl('m'),
       {
-        maxZoom: 19,
-        subdomains: 'abcd',
+        ...GOOGLE_TILE_OPTIONS,
+        className: 'dark-tactical-tiles',
       }
     ).addTo(map);
 
