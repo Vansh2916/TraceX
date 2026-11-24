@@ -15,6 +15,9 @@ interface AssistantMessage {
   thumb?: string;
 }
 
+const normalizePlate = (plate: string) =>
+  plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
   onExecuteQuery,
 }) => {
@@ -38,8 +41,7 @@ export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
     const userText = input.trim();
     const requestId = ++activeRequestIdRef.current;
     setInput('');
-    setMessages((prev) => [
-      ...prev,
+    setMessages([
       { id: `u-${requestId}`, sender: 'user', text: userText },
     ]);
     setLoading(true);
@@ -59,12 +61,49 @@ export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
       }
 
       const data = await res.json();
+      if (data.success === false || data.error) {
+        throw new Error('The query service could not complete this search.');
+      }
+
+      const results = Array.isArray(data.results) ? data.results : [];
+      const requestedPlate =
+        typeof data.requested_plate === 'string' ? data.requested_plate : undefined;
+      if (data.query_type === 'vehicle_lookup') {
+        const normalizedRequestedPlate = requestedPlate
+          ? normalizePlate(requestedPlate)
+          : '';
+        const hasMismatchedResults =
+          !normalizedRequestedPlate ||
+          results.some(
+            (result: { plate?: unknown }) =>
+              typeof result.plate !== 'string' ||
+              normalizePlate(result.plate) !== normalizedRequestedPlate
+          );
+
+        if (hasMismatchedResults) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `err-${requestId}`,
+              sender: 'ai',
+              text: 'The query returned results for a different vehicle. No sightings were shown. Please retry the search.',
+              isError: true,
+              found: false,
+              requestedPlate,
+            },
+          ]);
+          return;
+        }
+      }
 
       let answerText = '';
-      let isFound = data.found ?? (data.results && data.results.length > 0);
+      const isFound =
+        data.query_type === 'vehicle_lookup'
+          ? results.length > 0
+          : data.found ?? results.length > 0;
 
       if (data.query_type === 'vehicle_lookup' && !isFound) {
-        const plate = data.requested_plate || userText;
+        const plate = requestedPlate || userText;
         answerText = `No vehicle records found. No sightings are currently available for ${plate}. Please verify the registration number or try another search.`;
       } else if (!isFound) {
         answerText = data.message || `No records found matching: "${userText}".`;
@@ -72,7 +111,7 @@ export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
         answerText =
           data.message ||
           data.explanation ||
-          `Found ${data.results_count || data.results?.length} sighting(s) matching your inquiry.`;
+          `Found ${data.results_count || results.length} sighting(s) matching your inquiry.`;
       }
 
       setMessages((prev) => [
@@ -82,7 +121,7 @@ export const AISearchAssistantCard: React.FC<AISearchAssistantCardProps> = ({
           sender: 'ai',
           text: answerText,
           found: isFound,
-          requestedPlate: data.requested_plate,
+          requestedPlate,
         },
       ]);
       if (onExecuteQuery) onExecuteQuery(userText);
