@@ -26,7 +26,7 @@ flowchart TD
         ConvoyDet["Sliding-Window Convoy Detector"]
         AlibiEng["Haversine Alibi Discrepancy Engine"]
         NLSQL["Gemini NL-to-SQL + Offline Regex Fallback"]
-        DB[(SQLite: crusaders.db)]
+        DB[(SQLite: TraceX.db)]
     end
 
     UI <-->|WebSockets| WS
