@@ -50,7 +50,7 @@ export const CommanderSidebar: React.FC<CommanderSidebarProps> = ({
             </div>
             <div>
               <h1 className="text-[17px] font-black text-slate-900 tracking-tight leading-none">
-                Crusaders
+                TraceX
               </h1>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
                 ANPR Intelligence

@@ -45,7 +45,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div>
           <div className="flex items-center space-x-2">
             <span className="font-extrabold font-mono tracking-wider text-sm text-white">
-              CRUSADERS
+              TRACEX
             </span>
             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-400 font-semibold border border-sky-500/30">
               ANPR INTELLIGENCE

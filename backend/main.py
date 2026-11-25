@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
     # Stop background stream worker on shutdown
     await stream_worker.stop()
 
-app = FastAPI(title="Crusaders — City-Wide ANPR Trajectory Intelligence", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="TraceX — City-Wide ANPR Trajectory Intelligence", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -277,7 +277,7 @@ async def process_and_record_sighting(
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "app": "Crusaders ANPR Trajectory Intelligence", "active_cameras": len(DELHI_CAMERAS)}
+    return {"status": "ok", "app": "TraceX ANPR Trajectory Intelligence", "active_cameras": len(DELHI_CAMERAS)}
 
 @app.get("/api/cameras")
 def get_cameras():
