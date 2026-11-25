@@ -1,6 +1,6 @@
-# Crusaders — City-Wide ANPR Trajectory Intelligence
+# TraceX — City-Wide ANPR Trajectory Intelligence
 
-**Crusaders** is a full-stack municipal intelligence and trajectory anomaly detection platform monitoring real-time Automatic Number Plate Recognition (ANPR) feeds across **12 strategic Delhi arterial corridors** (CAM_01 to CAM_12).
+**TraceX** is a full-stack municipal intelligence and trajectory anomaly detection platform monitoring real-time Automatic Number Plate Recognition (ANPR) feeds across **12 strategic Delhi arterial corridors** (CAM_01 to CAM_12).
 
 ---
 

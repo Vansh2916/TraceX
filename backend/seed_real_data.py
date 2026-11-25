@@ -289,7 +289,7 @@ def seed_real_delhi_surveillance():
 
     conn.commit()
     conn.close()
-    print(f"[Crusaders DB] Successfully seeded {len(all_sightings)} real Delhi ANPR telemetry records and {len(real_alerts)} alerts.")
+    print(f"[TraceX DB] Successfully seeded {len(all_sightings)} real Delhi ANPR telemetry records and {len(real_alerts)} alerts.")
 
 if __name__ == "__main__":
     seed_real_delhi_surveillance()

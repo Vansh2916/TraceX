@@ -23,7 +23,7 @@ except ImportError:
 logger = logging.getLogger("crusaders.nl_sql")
 
 SCHEMA_PROMPT = """
-You are an expert SQL analyst for Crusaders, an intelligence platform monitoring Delhi city-wide ANPR traffic cameras.
+You are an expert SQL analyst for TraceX, an intelligence platform monitoring Delhi city-wide ANPR traffic cameras.
 Your task is to translate natural language user questions into STRICTLY READ-ONLY SQLite SELECT queries.
 
 Database Schema:

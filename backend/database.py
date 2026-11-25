@@ -132,13 +132,13 @@ def seed_db_if_empty():
         conn.close()
         return
 
-    print("[Crusaders DB] Seeding initial real Delhi traffic & intelligence records...")
+    print("[TraceX DB] Seeding initial real Delhi traffic & intelligence records...")
     try:
         from backend.seed_real_data import seed_real_delhi_surveillance
     except ImportError:
         from seed_real_data import seed_real_delhi_surveillance
     seed_real_delhi_surveillance()
-    print("[Crusaders DB] Database initialization and seed completed.")
+    print("[TraceX DB] Database initialization and seed completed.")
 
 def insert_live_streaming_vehicle(
     plate: str,

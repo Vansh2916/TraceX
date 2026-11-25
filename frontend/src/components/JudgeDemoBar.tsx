@@ -155,7 +155,7 @@ export const JudgeDemoBar: React.FC<JudgeDemoBarProps> = ({
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
             <h4 className="font-bold text-sky-400 flex items-center space-x-2">
               <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>JUDGE PITCH CHEATSHEET: What Crusaders Solves</span>
+              <span>JUDGE PITCH CHEATSHEET: What TraceX Solves</span>
             </h4>
             <span className="text-[10px] text-slate-400">Delhi City-Wide ANPR Intelligence</span>
           </div>
