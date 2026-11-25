@@ -103,7 +103,7 @@ ANPR readings with an OCR confidence score **$< 0.75$** are discarded immediatel
 
 ---
 
-## 🚀 Quickstart
+## 🚀 Setup
 
 ### Backend
 ```bash
